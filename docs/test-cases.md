@@ -52,6 +52,9 @@ This document outlines the test suite, test cases, preconditions, execution step
 | Live Test ID | Target URL | Method | Verified Output | Status |
 | :---: | :--- | :---: | :--- | :---: |
 | **LIVE-01** | `https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/health` | GET | `HTTP 200 OK` `{"status": "healthy", "service": "ai-aws-cost-optimization"}` | **VERIFIED** |
-| **LIVE-02** | `https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/cost-analysis` | GET | `HTTP 200 OK` Full cost analysis JSON with `demo_data` fallback and disclaimers. | **VERIFIED** |
+| **LIVE-02** | `https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/cost-analysis` | GET | `HTTP 200 OK` Full cost analysis JSON with `retrieval_timestamp_utc`, `demo_data` fallback, and disclaimers. | **VERIFIED** |
 | **LIVE-03** | `https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/cost-analysis` | OPTIONS | `HTTP 204 No Content` with `Access-Control-Allow-Origin: *`. | **VERIFIED** |
 | **LIVE-04** | `http://cost-optimizer-frontend-226234259454.s3-website.ap-south-1.amazonaws.com` | GET | `HTTP 200 OK` Serving static dashboard HTML, JS, CSS, Chart.js. | **VERIFIED** |
+| **LIVE-05** | `https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/save-report` | POST | `HTTP 200 OK` Snapshot generated & saved to `s3://cost-optimizer-reports-226234259454/reports/`. | **VERIFIED** |
+| **LIVE-06** | `s3://cost-optimizer-reports-226234259454/reports/` | S3 API | Report object verified (10,687 bytes), bucket verified 100% private with Public Access Block enabled. | **VERIFIED** |
+| **LIVE-07** | `/aws/lambda/cost-optimization-analyzer` | Logs API | CloudWatch log stream verified capturing execution without unhandled exceptions. | **VERIFIED** |

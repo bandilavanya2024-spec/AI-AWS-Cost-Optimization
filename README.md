@@ -19,7 +19,7 @@ The system is 100% serverless, operating with **$0.00 ongoing compute costs** vi
 | **Web Dashboard** | Amazon S3 (Website Hosting) | [http://cost-optimizer-frontend-226234259454.s3-website.ap-south-1.amazonaws.com](http://cost-optimizer-frontend-226234259454.s3-website.ap-south-1.amazonaws.com) | **VERIFIED LIVE** |
 | **Cost Analysis API** | Amazon API Gateway (HTTP v2) | [https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/cost-analysis](https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/cost-analysis) | **VERIFIED LIVE** |
 | **Health Check API** | Amazon API Gateway (HTTP v2) | [https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/health](https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/health) | **VERIFIED LIVE** |
-| **Save Report API** | Amazon API Gateway (HTTP v2) | `POST https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/save-report` | **VERIFIED ROUTE** |
+| **Save Report API** | Amazon API Gateway (HTTP v2) | `POST https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/save-report` | **VERIFIED LIVE** |
 | **Serverless Compute** | AWS Lambda | `cost-optimization-analyzer` (Python 3.12, ap-south-1) | **ACTIVE** |
 | **Reports Storage** | Amazon S3 | `s3://cost-optimizer-reports-226234259454` (ap-south-1) | **ACTIVE** |
 | **Execution Logging** | Amazon CloudWatch Logs | `/aws/lambda/cost-optimization-analyzer` | **ACTIVE** |
@@ -171,6 +171,9 @@ Invoke-RestMethod -Uri "https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/
 
 # Query Health Status
 Invoke-RestMethod -Uri "https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/health"
+
+# Trigger S3 Report Snapshot Save
+Invoke-RestMethod -Uri "https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/save-report" -Method Post
 ```
 
 ---
