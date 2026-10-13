@@ -1,0 +1,25 @@
+/* Custom Styles for Cost Optimization Dashboard */
+body {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+.recommendation-card {
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.recommendation-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+}
+
+.priority-high {
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+.priority-medium {
+    border-color: rgba(245, 158, 11, 0.4);
+}
+
+.priority-low {
+    border-color: rgba(59, 130, 246, 0.3);
+}

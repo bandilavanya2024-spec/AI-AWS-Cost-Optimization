@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Powered AWS Cloud Cost Optimization System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans antialiased">
+    <!-- Top Navigation Header -->
+    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-xl shadow-lg shadow-cyan-500/20">
+                    ☁️
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+                        AWS Cloud Cost Optimizer
+                    </h1>
+                    <p class="text-xs text-slate-400">Serverless FinOps & Rule-Based Recommendation Engine</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 flex-wrap justify-end">
+                <span id="regionBadge" class="px-2.5 py-1 text-xs rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                    Region: ap-south-1
+                </span>
+                <button id="refreshBtn" class="px-3 py-2 text-xs font-semibold rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white transition flex items-center gap-1.5 shadow-sm shadow-cyan-600/30">
+                    <svg id="refreshSpinner" class="w-3.5 h-3.5 animate-spin hidden" viewBox="0 0 24 24" fill="none">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Refresh Analysis</span>
+                </button>
+                <button id="saveS3Btn" class="px-3 py-2 text-xs font-medium rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white border border-indigo-500/50 transition flex items-center gap-1.5">
+                    <svg id="s3Spinner" class="w-3.5 h-3.5 animate-spin hidden" viewBox="0 0 24 24" fill="none">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>💾 Save to S3</span>
+                </button>
+                <button id="exportJsonBtn" class="px-3 py-2 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+                    📄 Download JSON
+                </button>
+                <button id="exportCsvBtn" class="px-3 py-2 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+                    📊 Export CSV
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <!-- Error Alert Banner (Hidden by default, shown on network/API failure) -->
+        <div id="apiErrorBanner" class="hidden p-4 rounded-xl border bg-red-950/40 border-red-500/40 text-red-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div class="flex items-start gap-3">
+                <span class="text-xl">🚨</span>
+                <div>
+                    <h3 class="font-bold text-xs uppercase tracking-wider text-red-300">API Connection Notice</h3>
+                    <p id="apiErrorMessage" class="text-xs text-red-200 mt-0.5">Could not reach the AWS API Gateway endpoint.</p>
+                    <span id="staleDataNotice" class="hidden text-[11px] text-amber-300 mt-1 block">⚠️ Preserving previously retrieved analysis. Data may be stale.</span>
+                </div>
+            </div>
+            <button id="retryBtn" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-700 hover:bg-red-600 text-white transition whitespace-nowrap">
+                Retry Connection
+            </button>
+        </div>
+
+        <!-- S3 Save Toast Notification (Hidden by default) -->
+        <div id="s3SaveNotification" class="hidden p-3 rounded-xl border text-xs flex items-center justify-between gap-3 transition-all">
+            <div class="flex items-center gap-2">
+                <span id="s3NotificationIcon">💾</span>
+                <span id="s3NotificationMessage">Saving report snapshot...</span>
+            </div>
+            <button id="closeNotificationBtn" class="text-slate-400 hover:text-white">&times;</button>
+        </div>
+
+        <!-- Data Source Status Notification Banner -->
+        <div id="dataSourceBanner" class="p-4 rounded-xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-amber-950/30 border-amber-500/30 text-amber-200">
+            <div class="flex items-start gap-3">
+                <span id="dataSourceIcon" class="text-xl">⚠️</span>
+                <div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span id="dataSourceBadge" class="font-semibold text-xs tracking-wider uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            Demo / Sample Data Mode
+                        </span>
+                        <span id="lastUpdated" class="text-xs text-slate-400 font-mono">Retrieving data...</span>
+                    </div>
+                    <p id="dataSourceMessage" class="text-xs text-slate-300 mt-1">
+                        AWS Cost Explorer data is not yet available or permissions are restricted. Simulated sample data is shown for college evaluation.
+                    </p>
+                </div>
+            </div>
+            <div class="text-xs text-slate-400 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800 whitespace-nowrap">
+                Engine: Deterministic Heuristic Rules
+            </div>
+        </div>
+
+        <!-- KPI Metric Cards Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <!-- Total Cost Card -->
+            <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 shadow-lg relative overflow-hidden group hover:border-cyan-500/40 transition">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-medium uppercase tracking-wider">Total Monthly Spend</span>
+                    <span class="text-lg">💳</span>
+                </div>
+                <div id="totalSpend" class="text-3xl font-extrabold text-white tracking-tight">$0.00</div>
+                <div class="mt-2 text-xs text-slate-400 flex items-center gap-1">
+                    <span>Month-to-date billed usage</span>
+                </div>
+            </div>
+
+            <!-- Highest-Cost Service Card -->
+            <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 shadow-lg relative overflow-hidden group hover:border-amber-500/40 transition">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-medium uppercase tracking-wider">Top Cost Driver</span>
+                    <span class="text-lg">🔥</span>
+                </div>
+                <div id="highestCostService" class="text-xl font-bold text-amber-400 truncate tracking-tight">Analyzing...</div>
+                <div id="highestCostAmount" class="mt-2 text-xs text-slate-300">
+                    $0.00 (0.0% of total)
+                </div>
+            </div>
+
+            <!-- Potential Savings Card -->
+            <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 shadow-lg relative overflow-hidden group hover:border-emerald-500/40 transition">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-medium uppercase tracking-wider">Potential Savings</span>
+                    <span class="text-lg">💡</span>
+                </div>
+                <div id="potentialSavings" class="text-2xl font-extrabold text-emerald-400 tracking-tight">$0.00 - $0.00</div>
+                <div id="potentialSavingsPct" class="mt-2 text-xs text-emerald-300/80">
+                    ~0% estimated potential reduction
+                </div>
+            </div>
+
+            <!-- Services Analyzed Card -->
+            <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 shadow-lg relative overflow-hidden group hover:border-blue-500/40 transition">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-medium uppercase tracking-wider">Services Analyzed</span>
+                    <span class="text-lg">📦</span>
+                </div>
+                <div id="servicesCount" class="text-3xl font-extrabold text-white tracking-tight">0</div>
+                <div class="mt-2 text-xs text-slate-400">
+                    Grouped by AWS Service dimension
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Service Cost Bar Chart (2 columns) -->
+            <div class="lg:col-span-2 bg-slate-800/60 border border-slate-700/60 rounded-2xl p-6 shadow-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-300">
+                        Monthly Spend by AWS Service ($)
+                    </h3>
+                    <span class="text-xs text-slate-500">Unblended Cost</span>
+                </div>
+                <div class="h-64">
+                    <canvas id="costBarChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Cost Distribution Doughnut Chart (1 column) -->
+            <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-6 shadow-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-300">
+                        Spend Share (%)
+                    </h3>
+                    <span class="text-xs text-slate-500">Proportional</span>
+                </div>
+                <div class="h-64 flex items-center justify-center">
+                    <canvas id="costPieChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Service Breakdown Table -->
+        <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-6 shadow-lg">
+            <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-300 mb-4">
+                Service-Wise Breakdown
+            </h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="border-b border-slate-700 text-slate-400 uppercase tracking-wider">
+                            <th class="py-3 px-4">AWS Service</th>
+                            <th class="py-3 px-4">Cost ($)</th>
+                            <th class="py-3 px-4">% of Total</th>
+                            <th class="py-3 px-4">Relative Share</th>
+                        </tr>
+                    </thead>
+                    <tbody id="breakdownTableBody" class="divide-y divide-slate-800/80">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Rule-Based Optimization Recommendations Section -->
+        <div class="space-y-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <div>
+                    <h2 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                        <span>🎯 Rule-Based Optimization Recommendations</span>
+                    </h2>
+                    <p class="text-xs text-slate-400">
+                        Algorithmic heuristic guidance with underlying assumptions and non-guaranteed savings estimates
+                    </p>
+                </div>
+                <div class="flex gap-2 text-xs">
+                    <button class="filter-btn active px-3 py-1 rounded-lg bg-cyan-600 text-white" data-priority="ALL">All</button>
+                    <button class="filter-btn px-3 py-1 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700" data-priority="HIGH">High Priority</button>
+                    <button class="filter-btn px-3 py-1 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700" data-priority="MEDIUM">Medium Priority</button>
+                </div>
+            </div>
+
+            <!-- Recommendations Grid -->
+            <div id="recommendationsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+
+        <!-- Academic & Technical Governance Notice -->
+        <div class="p-5 rounded-2xl border border-slate-800 bg-slate-950/50 text-xs text-slate-400 space-y-2">
+            <div class="font-semibold text-slate-300 flex items-center gap-2">
+                <span>📘 College Assessment & Methodology Statement</span>
+            </div>
+            <p>
+                <strong>Optimization Methodology:</strong> This system applies deterministic rule-based heuristics developed in accordance with the AWS Well-Architected Framework (Cost Optimization Pillar). It evaluates service spend proportions, identifies top cost drivers, and suggests targeted actions.
+            </p>
+            <p>
+                <strong>Academic Clarification:</strong> This project does not employ a black-box machine learning model or neural network. Heuristic rules are fully auditable, reproducible, and transparent. Detailed instance-level rightsizing requires detailed CloudWatch agent metrics and human review before making resource changes.
+            </p>
+        </div>
+    </main>
+
+    <footer class="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500">
+        AI-Powered AWS Cloud Cost Optimization System &bull; Serverless AWS Architecture (Lambda + S3 + API Gateway + Cost Explorer)
+    </footer>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

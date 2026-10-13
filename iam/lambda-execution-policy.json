@@ -1,0 +1,32 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CloudWatchLogManagement",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:ap-south-1:226234259454:log-group:/aws/lambda/cost-optimization-analyzer:*"
+    },
+    {
+      "Sid": "CostExplorerReadAccess",
+      "Effect": "Allow",
+      "Action": [
+        "ce:GetCostAndUsage",
+        "ce:GetDimensionValues"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "S3ReportsStoragePutAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::cost-optimizer-reports-226234259454/reports/*"
+    }
+  ]
+}
