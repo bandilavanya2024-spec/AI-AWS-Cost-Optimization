@@ -113,7 +113,32 @@ Navigate to:
 
 ---
 
-## 🧪 Automated Pytest Test Suite (42 Passing Tests)
+## 🎯 Three-Tab Operational Architecture
+
+1. **🧮 Cost Estimator (Primary Interactive Tab)**:
+   - Dedicated user-input workspace to configure EC2, S3, RDS, Lambda, CloudWatch, and VPC.
+   - Dynamic service builder: Add or remove services from the project architecture.
+   - Architectural presets: Full-Stack Web App, Serverless API, VPC Enterprise, Minimal Free-Tier.
+   - Live subtotal footers on every service card recalculating as you type.
+   - Custom unit price override inputs allowing testing of custom negotiated rates or unlisted models.
+   - Sticky project total bar and `Compare Configurations` modal.
+2. **📊 Savings & Cost Dashboard (Analytical Results Tab)**:
+   - Executive dashboard featuring large hero savings cards and 4 compact KPI cards.
+   - Horizontal dimensional filters (Time Period, Service Provider, Service, Cost Type).
+   - Wide stacked bar chart with 3 grouping dimensions (Service Name, Cost Category, Monthly Trend).
+   - Proportional doughnut chart and Before-vs-After comparison bar chart.
+   - Detailed calculation audit table with exact math formulas, quantities, and pricing status.
+   - Algorithmic optimization proposals with interactive **[✓ Apply]** / **[✕ Reject]** toggles.
+   - Export to JSON, CSV, Print, and S3.
+3. **🛡️ Actual AWS Billing Telemetry (Mode 2 Live Account Tab)**:
+   - Queries live AWS API Gateway (`GET /cost-analysis`).
+   - Honestly reports verified $0.00 actual spend (backed by active AWS Budget `Zero-Cost-Project-Budget`).
+   - Explains the 24-hour Cost Explorer ETL ingestion window with zero fabricated numbers.
+   - Displays 4 proactive architectural governance controls.
+
+---
+
+## 🧪 Automated Pytest Test Suite (47 Passing Tests)
 
 Run the complete test suite locally:
 ```powershell
@@ -124,12 +149,12 @@ python -m pytest tests/ -v
 ```text
 ============================= test session starts =============================
 platform win32 -- Python 3.14.2, pytest-9.1.1 -- rootdir: AI-AWS-Cost-Optimization
-collected 42 items
+collected 47 items
 
-tests/test_cost_analyzer.py (24 tests) ........................          [ 57%]
-tests/test_estimator_engine.py (18 tests) ..................             [100%]
+tests/test_cost_analyzer.py (24 tests) ........................          [ 51%]
+tests/test_estimator_engine.py (23 tests) .......................        [100%]
 
-============================= 42 passed in 0.49s ==============================
+============================= 47 passed in 0.32s ==============================
 ```
 
 ---

@@ -1,7 +1,7 @@
 /**
  * AI-Powered AWS Cloud Cost Optimization System
- * Enterprise Dashboard Controller - "Realized Savings & Cloud Cost Optimization"
- * Version 2.1.0 - Interactive Heuristic Estimator, Filter Engine & Telemetry
+ * Enterprise Dashboard & Interactive Estimator Controller
+ * Version 3.0.0 - Full 3-Tab Architecture, Live Subtotals, Custom Pricing & Interactive Optimizer
  */
 
 // ========================================================
@@ -13,17 +13,28 @@ let beforeAfterCompChartInstance = null;
 
 // Raw calculation state (unfiltered monthly baseline)
 let rawCalculationState = null;
-// Active filter & view configuration
+
+// Active filters state
 let currentFilters = {
-    period: "month",         // "month" | "last_month" | "last_6_months" | "ytd" | "annual"
+    period: "month",
     provider: "AWS",
-    service: "ALL",          // "ALL" | "ec2" | "s3" | "rds" | "lambda" | "cloudwatch" | "vpc"
-    costType: "ALL",         // "ALL" | "compute" | "storage" | "database" | "networking" | "monitoring"
-    chartGrouping: "service" // "service" | "cost_type" | "monthly_trend"
+    service: "ALL",
+    costType: "ALL",
+    chartGrouping: "service"
 };
 
+// Applied recommendation IDs set (interactive optimization engine)
+let appliedRecommendationIds = new Set([
+    "REC-EC2-SCHED",
+    "REC-EC2-SIZE",
+    "REC-S3-LIFECYCLE",
+    "REC-RDS-AZ",
+    "REC-LAM-ARM",
+    "REC-VPC-ENDPOINT"
+]);
+
 let currentActualBillingData = null;
-let activeMode = "ESTIMATOR"; // "ESTIMATOR" | "ACTUAL_BILLING"
+let activeTab = "ESTIMATOR"; // "ESTIMATOR" | "DASHBOARD" | "ACTUAL_BILLING"
 
 // Exchange rate reference (USD to INR) - Fixed RBI Benchmark Rate
 const USD_TO_INR_RATE = 83.50;
@@ -47,7 +58,7 @@ const PRICING_DATABASE = {
             ebs_gp3_per_gb: 0.088,
             ebs_gp2_per_gb: 0.114,
             data_transfer_per_gb: 0.109,
-            source: "AWS EC2 Pricing (ap-south-1)"
+            source: "AWS EC2 On-Demand Pricing (ap-south-1)"
         },
         s3: {
             storage_classes: {
@@ -164,7 +175,6 @@ const PRICING_DATABASE = {
     }
 };
 
-// Distinctive Service Color Palette (Enterprise Light Theme)
 const SERVICE_COLORS = {
     ec2: { bg: "#3b82f6", border: "#2563eb", name: "Amazon EC2" },
     s3: { bg: "#10b981", border: "#059669", name: "Amazon S3" },
@@ -188,49 +198,152 @@ const COST_TYPE_COLORS = {
 
 document.addEventListener("DOMContentLoaded", () => {
     initNavigationTabs();
+    initArchitecturePills();
+    initServiceTogglesAndCustomPrices();
     initFilterToolbar();
-    initServiceToggles();
     initPresets();
     initGlobalSelectors();
     initActionButtons();
+    initComparisonModal();
 
-    // Run baseline calculation
+    // Load saved architecture from localStorage or calculate baseline
+    loadSavedArchitecture();
     calculateEstimate();
 });
 
 function initNavigationTabs() {
     const tabEstimator = document.getElementById("tabEstimator");
+    const tabDashboard = document.getElementById("tabDashboard");
     const tabActual = document.getElementById("tabActualBilling");
+
     const containerEstimator = document.getElementById("modeEstimatorContainer");
+    const containerDashboard = document.getElementById("modeDashboardContainer");
     const containerActual = document.getElementById("modeActualBillingContainer");
     const badge = document.getElementById("dataModeBadge");
 
-    if (tabEstimator && tabActual) {
-        tabEstimator.addEventListener("click", () => {
-            activeMode = "ESTIMATOR";
-            tabEstimator.classList.add("active");
-            tabActual.classList.remove("active");
+    function switchTab(target) {
+        activeTab = target;
+        [tabEstimator, tabDashboard, tabActual].forEach(t => { if (t) t.classList.remove("active"); });
+        [containerEstimator, containerDashboard, containerActual].forEach(c => { if (c) c.classList.add("hidden"); });
+
+        if (target === "ESTIMATOR") {
+            if (tabEstimator) tabEstimator.classList.add("active");
             if (containerEstimator) containerEstimator.classList.remove("hidden");
-            if (containerActual) containerActual.classList.add("hidden");
             if (badge) {
-                badge.textContent = "ESTIMATED COST MODE";
+                badge.textContent = "🧮 COST ESTIMATOR";
                 badge.className = "px-2 py-0.5 text-[11px] font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-200";
             }
-        });
-
-        tabActual.addEventListener("click", () => {
-            activeMode = "ACTUAL_BILLING";
-            tabActual.classList.add("active");
-            tabEstimator.classList.remove("active");
-            if (containerActual) containerActual.classList.remove("hidden");
-            if (containerEstimator) containerEstimator.classList.add("hidden");
+        } else if (target === "DASHBOARD") {
+            if (tabDashboard) tabDashboard.classList.add("active");
+            if (containerDashboard) containerDashboard.classList.remove("hidden");
             if (badge) {
-                badge.textContent = "ACTUAL BILLING TELEMETRY (LIVE)";
+                badge.textContent = "📊 SAVINGS DASHBOARD";
                 badge.className = "px-2 py-0.5 text-[11px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200";
             }
+            applyFiltersAndRender();
+        } else if (target === "ACTUAL_BILLING") {
+            if (tabActual) tabActual.classList.add("active");
+            if (containerActual) containerActual.classList.remove("hidden");
+            if (badge) {
+                badge.textContent = "🛡️ ACTUAL AWS BILLING";
+                badge.className = "px-2 py-0.5 text-[11px] font-bold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200";
+            }
             loadActualBillingData();
+        }
+    }
+
+    if (tabEstimator) tabEstimator.addEventListener("click", () => switchTab("ESTIMATOR"));
+    if (tabDashboard) tabDashboard.addEventListener("click", () => switchTab("DASHBOARD"));
+    if (tabActual) tabActual.addEventListener("click", () => switchTab("ACTUAL_BILLING"));
+
+    const backToInputsBtn = document.getElementById("backToInputsBtn");
+    if (backToInputsBtn) backToInputsBtn.addEventListener("click", () => switchTab("ESTIMATOR"));
+
+    const calculateAndSwitchBtn = document.getElementById("calculateAndSwitchBtn");
+    if (calculateAndSwitchBtn) {
+        calculateAndSwitchBtn.addEventListener("click", () => {
+            calculateEstimate();
+            switchTab("DASHBOARD");
+            showToast("Calculated full architecture! Results displayed in Dashboard.", false);
         });
     }
+}
+
+function initArchitecturePills() {
+    const pills = document.querySelectorAll(".service-pill-btn");
+    pills.forEach(pill => {
+        pill.addEventListener("click", () => {
+            const svc = pill.getAttribute("data-service");
+            const checkbox = document.getElementById(`${svc}_enabled`);
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                updateServiceUIState(svc, checkbox.checked);
+                calculateEstimate();
+            }
+        });
+    });
+}
+
+function updateServiceUIState(svc, isEnabled) {
+    const pill = document.getElementById(`pill_${svc}`);
+    const fields = document.getElementById(`${svc}_fields`);
+    const card = document.getElementById(`card-${svc}`);
+
+    if (pill) {
+        if (isEnabled) {
+            pill.classList.add("active");
+            pill.innerHTML = `<span>✓ ${pill.textContent.replace(/[✓✕]/g, '').trim()}</span>`;
+        } else {
+            pill.classList.remove("active");
+            pill.innerHTML = `<span>✕ ${pill.textContent.replace(/[✓✕]/g, '').trim()}</span>`;
+        }
+    }
+
+    if (fields) {
+        if (isEnabled) {
+            fields.classList.remove("opacity-40", "pointer-events-none");
+        } else {
+            fields.classList.add("opacity-40", "pointer-events-none");
+        }
+    }
+}
+
+function initServiceTogglesAndCustomPrices() {
+    const services = ["ec2", "s3", "rds", "lambda", "cw", "vpc"];
+    services.forEach(svc => {
+        const checkbox = document.getElementById(`${svc}_enabled`);
+        if (checkbox) {
+            checkbox.addEventListener("change", () => {
+                updateServiceUIState(svc, checkbox.checked);
+                calculateEstimate();
+            });
+        }
+
+        // Custom price toggles
+        const priceToggle = document.getElementById(`${svc}_custom_price_toggle`);
+        const priceInput = document.getElementById(`${svc}_custom_price`);
+        if (priceToggle && priceInput) {
+            priceToggle.addEventListener("change", () => {
+                if (priceToggle.checked) {
+                    priceInput.classList.remove("hidden");
+                } else {
+                    priceInput.classList.add("hidden");
+                    priceInput.value = "";
+                }
+                calculateEstimate();
+            });
+            priceInput.addEventListener("input", () => calculateEstimate());
+        }
+    });
+
+    // Auto recalculate on any input change inside forms
+    const inputs = document.querySelectorAll("#modeEstimatorContainer input, #modeEstimatorContainer select");
+    inputs.forEach(input => {
+        if (!input.classList.contains("filter-select")) {
+            input.addEventListener("input", () => calculateEstimate());
+            input.addEventListener("change", () => calculateEstimate());
+        }
+    });
 }
 
 function initFilterToolbar() {
@@ -278,11 +391,13 @@ function initFilterToolbar() {
 
     if (resetFiltersBtn) {
         resetFiltersBtn.addEventListener("click", () => {
-            currentFilters.period = "month";
-            currentFilters.provider = "AWS";
-            currentFilters.service = "ALL";
-            currentFilters.costType = "ALL";
-            currentFilters.chartGrouping = "service";
+            currentFilters = {
+                period: "month",
+                provider: "AWS",
+                service: "ALL",
+                costType: "ALL",
+                chartGrouping: "service"
+            };
 
             if (filterPeriod) filterPeriod.value = "month";
             if (filterProvider) filterProvider.value = "AWS";
@@ -294,34 +409,6 @@ function initFilterToolbar() {
             showToast("Reset all dashboard filters to default view.", false);
         });
     }
-}
-
-function initServiceToggles() {
-    const services = ["ec2", "s3", "rds", "lambda", "cw", "vpc"];
-    services.forEach(svc => {
-        const checkbox = document.getElementById(`${svc}_enabled`);
-        const fields = document.getElementById(`${svc}_fields`);
-        if (checkbox && fields) {
-            checkbox.addEventListener("change", () => {
-                if (checkbox.checked) {
-                    fields.classList.remove("opacity-40", "pointer-events-none");
-                } else {
-                    fields.classList.add("opacity-40", "pointer-events-none");
-                }
-                calculateEstimate();
-            });
-        }
-    });
-
-    // Auto-recalculate on capacity input changes
-    const inputs = document.querySelectorAll("#modeEstimatorContainer input, #modeEstimatorContainer select");
-    inputs.forEach(input => {
-        if (!input.classList.contains("filter-select") && input.id !== "globalRegionSelect" && input.id !== "globalCurrencySelect") {
-            input.addEventListener("change", () => {
-                calculateEstimate();
-            });
-        }
-    });
 }
 
 function initGlobalSelectors() {
@@ -344,7 +431,12 @@ function initGlobalSelectors() {
 
 function initActionButtons() {
     const calcBtn = document.getElementById("calculateBtn");
-    if (calcBtn) calcBtn.addEventListener("click", calculateEstimate);
+    if (calcBtn) {
+        calcBtn.addEventListener("click", () => {
+            calculateEstimate();
+            showToast("Recalculated all service cost estimates.", false);
+        });
+    }
 
     const exportJsonBtn = document.getElementById("exportJsonBtn");
     if (exportJsonBtn) exportJsonBtn.addEventListener("click", exportEstimateJson);
@@ -368,10 +460,59 @@ function initActionButtons() {
             if (toast) toast.classList.add("hidden");
         });
     }
+
+    // Optimization mass toggle buttons
+    const applyAllBtn = document.getElementById("applyAllRecsBtn");
+    if (applyAllBtn) {
+        applyAllBtn.addEventListener("click", () => {
+            if (rawCalculationState && rawCalculationState.recommendations) {
+                rawCalculationState.recommendations.forEach(r => appliedRecommendationIds.add(r.id));
+                applyFiltersAndRender();
+                showToast("Applied all Well-Architected optimization proposals.", false);
+            }
+        });
+    }
+
+    const rejectAllBtn = document.getElementById("rejectAllRecsBtn");
+    if (rejectAllBtn) {
+        rejectAllBtn.addEventListener("click", () => {
+            appliedRecommendationIds.clear();
+            applyFiltersAndRender();
+            showToast("Rejected all optimization proposals. Plan equals baseline.", false);
+        });
+    }
+}
+
+function initComparisonModal() {
+    const modal = document.getElementById("comparisonModal");
+    const openBtn = document.getElementById("compareConfigBtn");
+    const closeBtn1 = document.getElementById("closeCompModalBtn");
+    const closeBtn2 = document.getElementById("closeCompModalBtn2");
+
+    if (openBtn && modal) {
+        openBtn.addEventListener("click", () => {
+            populateComparisonModal();
+            modal.classList.remove("hidden");
+        });
+    }
+
+    [closeBtn1, closeBtn2].forEach(btn => {
+        if (btn && modal) {
+            btn.addEventListener("click", () => {
+                modal.classList.add("hidden");
+            });
+        }
+    });
+
+    if (modal) {
+        modal.addEventListener("click", (e) => {
+            if (e.target === modal) modal.classList.add("hidden");
+        });
+    }
 }
 
 // ========================================================
-// 2. Preset Scenarios
+// 2. Scenario Presets
 // ========================================================
 
 function initPresets() {
@@ -397,7 +538,7 @@ function initPresets() {
 
 function applyScenarioPreset(preset) {
     if (preset === "webapp") {
-        document.getElementById("ec2_enabled").checked = true;
+        setServiceChecked("ec2", true);
         document.getElementById("ec2_instance_type").value = "t3.medium";
         document.getElementById("ec2_count").value = 2;
         document.getElementById("ec2_hours_day").value = 24;
@@ -405,65 +546,62 @@ function applyScenarioPreset(preset) {
         document.getElementById("ec2_ebs_gb").value = 30;
         document.getElementById("ec2_transfer_gb").value = 50;
 
-        document.getElementById("s3_enabled").checked = true;
+        setServiceChecked("s3", true);
         document.getElementById("s3_class").value = "Standard";
         document.getElementById("s3_storage_gb").value = 250;
         document.getElementById("s3_put_reqs").value = 20000;
         document.getElementById("s3_get_reqs").value = 100000;
         document.getElementById("s3_retrieval_gb").value = 0;
 
-        document.getElementById("rds_enabled").checked = true;
+        setServiceChecked("rds", true);
+        document.getElementById("rds_engine").value = "PostgreSQL";
         document.getElementById("rds_instance_type").value = "db.t3.medium";
         document.getElementById("rds_deployment").value = "Multi-AZ";
         document.getElementById("rds_storage_gb").value = 50;
         document.getElementById("rds_count").value = 1;
         document.getElementById("rds_hours").value = 730;
 
-        document.getElementById("lambda_enabled").checked = true;
+        setServiceChecked("lambda", true);
         document.getElementById("lambda_requests").value = 3000000;
         document.getElementById("lambda_duration").value = 200;
         document.getElementById("lambda_memory").value = "512";
         document.getElementById("lambda_arch").value = "x86_64";
         document.getElementById("lambda_freetier").checked = true;
 
-        document.getElementById("cw_enabled").checked = true;
+        setServiceChecked("cw", true);
         document.getElementById("cw_ingest_gb").value = 20;
         document.getElementById("cw_storage_gb").value = 30;
         document.getElementById("cw_metrics").value = 12;
         document.getElementById("cw_freetier").checked = true;
 
-        document.getElementById("vpc_enabled").checked = true;
+        setServiceChecked("vpc", true);
         document.getElementById("vpc_nat_count").value = 1;
         document.getElementById("vpc_nat_hours").value = 730;
         document.getElementById("vpc_nat_data_gb").value = 80;
         document.getElementById("vpc_public_ips").value = 1;
     } else if (preset === "microservices") {
-        document.getElementById("ec2_enabled").checked = false;
-        document.getElementById("s3_enabled").checked = true;
+        setServiceChecked("ec2", false);
+        setServiceChecked("s3", true);
         document.getElementById("s3_class").value = "Standard";
         document.getElementById("s3_storage_gb").value = 100;
         document.getElementById("s3_put_reqs").value = 50000;
         document.getElementById("s3_get_reqs").value = 250000;
-        document.getElementById("s3_retrieval_gb").value = 0;
 
-        document.getElementById("rds_enabled").checked = false;
-
-        document.getElementById("lambda_enabled").checked = true;
+        setServiceChecked("rds", false);
+        setServiceChecked("lambda", true);
         document.getElementById("lambda_requests").value = 10000000;
         document.getElementById("lambda_duration").value = 150;
         document.getElementById("lambda_memory").value = "256";
         document.getElementById("lambda_arch").value = "x86_64";
-        document.getElementById("lambda_freetier").checked = true;
 
-        document.getElementById("cw_enabled").checked = true;
+        setServiceChecked("cw", true);
         document.getElementById("cw_ingest_gb").value = 25;
         document.getElementById("cw_storage_gb").value = 20;
         document.getElementById("cw_metrics").value = 10;
-        document.getElementById("cw_freetier").checked = true;
 
-        document.getElementById("vpc_enabled").checked = false;
+        setServiceChecked("vpc", false);
     } else if (preset === "enterprise") {
-        document.getElementById("ec2_enabled").checked = true;
+        setServiceChecked("ec2", true);
         document.getElementById("ec2_instance_type").value = "m5.large";
         document.getElementById("ec2_count").value = 4;
         document.getElementById("ec2_hours_day").value = 24;
@@ -471,40 +609,37 @@ function applyScenarioPreset(preset) {
         document.getElementById("ec2_ebs_gb").value = 100;
         document.getElementById("ec2_transfer_gb").value = 200;
 
-        document.getElementById("s3_enabled").checked = true;
+        setServiceChecked("s3", true);
         document.getElementById("s3_class").value = "Standard";
         document.getElementById("s3_storage_gb").value = 1000;
         document.getElementById("s3_put_reqs").value = 100000;
         document.getElementById("s3_get_reqs").value = 500000;
-        document.getElementById("s3_retrieval_gb").value = 0;
 
-        document.getElementById("rds_enabled").checked = true;
+        setServiceChecked("rds", true);
+        document.getElementById("rds_engine").value = "PostgreSQL";
         document.getElementById("rds_instance_type").value = "db.m5.large";
         document.getElementById("rds_deployment").value = "Multi-AZ";
         document.getElementById("rds_storage_gb").value = 200;
         document.getElementById("rds_count").value = 2;
         document.getElementById("rds_hours").value = 730;
 
-        document.getElementById("lambda_enabled").checked = true;
+        setServiceChecked("lambda", true);
         document.getElementById("lambda_requests").value = 5000000;
         document.getElementById("lambda_duration").value = 300;
         document.getElementById("lambda_memory").value = "1024";
-        document.getElementById("lambda_arch").value = "x86_64";
-        document.getElementById("lambda_freetier").checked = true;
 
-        document.getElementById("cw_enabled").checked = true;
+        setServiceChecked("cw", true);
         document.getElementById("cw_ingest_gb").value = 50;
         document.getElementById("cw_storage_gb").value = 100;
         document.getElementById("cw_metrics").value = 25;
-        document.getElementById("cw_freetier").checked = true;
 
-        document.getElementById("vpc_enabled").checked = true;
+        setServiceChecked("vpc", true);
         document.getElementById("vpc_nat_count").value = 2;
         document.getElementById("vpc_nat_hours").value = 730;
         document.getElementById("vpc_nat_data_gb").value = 300;
         document.getElementById("vpc_public_ips").value = 2;
     } else if (preset === "freetier") {
-        document.getElementById("ec2_enabled").checked = true;
+        setServiceChecked("ec2", true);
         document.getElementById("ec2_instance_type").value = "t3.micro";
         document.getElementById("ec2_count").value = 1;
         document.getElementById("ec2_hours_day").value = 24;
@@ -512,49 +647,45 @@ function applyScenarioPreset(preset) {
         document.getElementById("ec2_ebs_gb").value = 30;
         document.getElementById("ec2_transfer_gb").value = 0;
 
-        document.getElementById("s3_enabled").checked = true;
+        setServiceChecked("s3", true);
         document.getElementById("s3_class").value = "Standard";
         document.getElementById("s3_storage_gb").value = 5;
         document.getElementById("s3_put_reqs").value = 2000;
         document.getElementById("s3_get_reqs").value = 20000;
-        document.getElementById("s3_retrieval_gb").value = 0;
 
-        document.getElementById("rds_enabled").checked = true;
+        setServiceChecked("rds", true);
+        document.getElementById("rds_engine").value = "PostgreSQL";
         document.getElementById("rds_instance_type").value = "db.t3.micro";
         document.getElementById("rds_deployment").value = "Single-AZ";
         document.getElementById("rds_storage_gb").value = 20;
         document.getElementById("rds_count").value = 1;
-        document.getElementById("rds_hours").value = 730;
 
-        document.getElementById("lambda_enabled").checked = true;
+        setServiceChecked("lambda", true);
         document.getElementById("lambda_requests").value = 500000;
         document.getElementById("lambda_duration").value = 100;
         document.getElementById("lambda_memory").value = "128";
-        document.getElementById("lambda_arch").value = "x86_64";
         document.getElementById("lambda_freetier").checked = true;
 
-        document.getElementById("cw_enabled").checked = true;
+        setServiceChecked("cw", true);
         document.getElementById("cw_ingest_gb").value = 5;
         document.getElementById("cw_storage_gb").value = 5;
         document.getElementById("cw_metrics").value = 10;
         document.getElementById("cw_freetier").checked = true;
 
-        document.getElementById("vpc_enabled").checked = false;
+        setServiceChecked("vpc", false);
     }
+}
 
-    // Refresh disabled visual state
-    ["ec2", "s3", "rds", "lambda", "cw", "vpc"].forEach(s => {
-        const chk = document.getElementById(`${s}_enabled`);
-        const fld = document.getElementById(`${s}_fields`);
-        if (chk && fld) {
-            if (chk.checked) fld.classList.remove("opacity-40", "pointer-events-none");
-            else fld.classList.add("opacity-40", "pointer-events-none");
-        }
-    });
+function setServiceChecked(svc, isChecked) {
+    const chk = document.getElementById(`${svc}_enabled`);
+    if (chk) {
+        chk.checked = isChecked;
+        updateServiceUIState(svc, isChecked);
+    }
 }
 
 // ========================================================
-// 3. Mathematical Cost Estimation & Heuristic Optimization
+// 3. Mathematical Cost Estimation & Optimization Engine
 // ========================================================
 
 function calculateEstimate() {
@@ -562,34 +693,56 @@ function calculateEstimate() {
     const currency = document.getElementById("globalCurrencySelect") ? document.getElementById("globalCurrencySelect").value : "USD";
     const pricing = PRICING_DATABASE[region] || PRICING_DATABASE["ap-south-1"];
 
+    const isINR = (currency === "INR");
+    const mult = isINR ? USD_TO_INR_RATE : 1.0;
+    const symbol = isINR ? "₹" : "$";
+
     const lineItems = [];
     const serviceResults = [];
     let baselineMonthlyUSD = 0;
 
     // --- 1. Amazon EC2 ---
-    if (document.getElementById("ec2_enabled") && document.getElementById("ec2_enabled").checked) {
+    const ec2Enabled = document.getElementById("ec2_enabled") && document.getElementById("ec2_enabled").checked;
+    let ec2Subtotal = 0;
+    if (ec2Enabled) {
         const instType = document.getElementById("ec2_instance_type").value;
         const count = Math.max(1, parseInt(document.getElementById("ec2_count").value) || 1);
         const hoursDay = Math.min(24, Math.max(0, parseFloat(document.getElementById("ec2_hours_day").value) || 24));
         const daysMonth = Math.min(31, Math.max(0, parseFloat(document.getElementById("ec2_days_month").value) || 30.5));
         const ebsGb = Math.max(0, parseFloat(document.getElementById("ec2_ebs_gb").value) || 0);
+        const ebsType = document.getElementById("ec2_ebs_type").value;
         const transferGb = Math.max(0, parseFloat(document.getElementById("ec2_transfer_gb").value) || 0);
 
-        const instInfo = pricing.ec2.instances[instType] || pricing.ec2.instances["t3.micro"];
-        const monthlyHours = hoursDay * daysMonth;
-        const computeCost = instInfo.price_per_hr * count * monthlyHours;
-        const ebsCost = count * ebsGb * pricing.ec2.ebs_gp3_per_gb;
-        const transferCost = transferGb * pricing.ec2.data_transfer_per_gb;
-        const ec2Total = computeCost + ebsCost + transferCost;
+        // Custom price override
+        const customPriceToggle = document.getElementById("ec2_custom_price_toggle");
+        const customPriceVal = document.getElementById("ec2_custom_price").value;
+        let hourlyPrice, priceSource, isCustomPrice = false;
 
-        baselineMonthlyUSD += ec2Total;
+        if (customPriceToggle && customPriceToggle.checked && customPriceVal !== "" && parseFloat(customPriceVal) >= 0) {
+            hourlyPrice = parseFloat(customPriceVal);
+            priceSource = "User Custom Override";
+            isCustomPrice = true;
+        } else {
+            const instInfo = pricing.ec2.instances[instType] || pricing.ec2.instances["t3.micro"];
+            hourlyPrice = instInfo.price_per_hr;
+            priceSource = "AWS Official Catalog (Verified)";
+        }
+
+        const monthlyHours = hoursDay * daysMonth;
+        const computeCost = hourlyPrice * count * monthlyHours;
+        const ebsRate = (ebsType === "gp3") ? pricing.ec2.ebs_gp3_per_gb : pricing.ec2.ebs_gp2_per_gb;
+        const ebsCost = count * ebsGb * ebsRate;
+        const transferCost = transferGb * pricing.ec2.data_transfer_per_gb;
+        ec2Subtotal = computeCost + ebsCost + transferCost;
+        baselineMonthlyUSD += ec2Subtotal;
+
         serviceResults.push({
             service_key: "ec2",
             service_name: "Amazon Elastic Compute Cloud (EC2)",
             short_name: "EC2",
             cost_type: "compute",
-            monthly_cost_usd: ec2Total,
-            configuration: { instType, count, hoursDay, daysMonth, monthlyHours, ebsGb, transferGb, hourlyPrice: instInfo.price_per_hr }
+            monthly_cost_usd: ec2Subtotal,
+            configuration: { instType, count, hoursDay, daysMonth, monthlyHours, ebsGb, ebsType, transferGb, hourlyPrice, isCustomPrice }
         });
 
         lineItems.push({
@@ -598,23 +751,25 @@ function calculateEstimate() {
             component_name: `Compute (${instType})`,
             cost_type: "compute",
             quantity: `${count}x @ ${monthlyHours.toFixed(1)} hrs/mo`,
-            unit_price: `$${instInfo.price_per_hr.toFixed(4)}/hr`,
-            formula: `${count} × (${hoursDay}h × ${daysMonth}d) × $${instInfo.price_per_hr.toFixed(4)}`,
+            unit_price: `$${hourlyPrice.toFixed(4)}/hr`,
+            formula: `${count} × (${hoursDay}h × ${daysMonth}d) × $${hourlyPrice.toFixed(4)}`,
             subtotal_usd: computeCost,
-            pricing_source: pricing.ec2.source
+            pricing_source: priceSource,
+            is_custom: isCustomPrice
         });
 
         if (ebsGb > 0) {
             lineItems.push({
                 service_key: "ec2",
                 service_name: "Amazon EC2",
-                component_name: "EBS gp3 Storage",
+                component_name: `EBS Storage (${ebsType})`,
                 cost_type: "storage",
                 quantity: `${(count * ebsGb).toFixed(0)} GB-mo`,
-                unit_price: `$${pricing.ec2.ebs_gp3_per_gb.toFixed(3)}/GB-mo`,
-                formula: `${count * ebsGb} GB × $${pricing.ec2.ebs_gp3_per_gb.toFixed(3)}`,
+                unit_price: `$${ebsRate.toFixed(3)}/GB-mo`,
+                formula: `${count * ebsGb} GB × $${ebsRate.toFixed(3)}`,
                 subtotal_usd: ebsCost,
-                pricing_source: "AWS EBS General Purpose SSD"
+                pricing_source: "AWS Official Catalog (Verified)",
+                is_custom: false
             });
         }
 
@@ -628,46 +783,64 @@ function calculateEstimate() {
                 unit_price: `$${pricing.ec2.data_transfer_per_gb.toFixed(3)}/GB`,
                 formula: `${transferGb} GB × $${pricing.ec2.data_transfer_per_gb.toFixed(3)}`,
                 subtotal_usd: transferCost,
-                pricing_source: "AWS Data Transfer"
+                pricing_source: "AWS Official Catalog (Verified)",
+                is_custom: false
             });
         }
     }
+    updateCardSubtotal("subtotal_ec2", ec2Subtotal, symbol, mult, ec2Enabled);
 
     // --- 2. Amazon S3 ---
-    if (document.getElementById("s3_enabled") && document.getElementById("s3_enabled").checked) {
+    const s3Enabled = document.getElementById("s3_enabled") && document.getElementById("s3_enabled").checked;
+    let s3Subtotal = 0;
+    if (s3Enabled) {
         const s3Class = document.getElementById("s3_class").value;
         const storageGb = Math.max(0, parseFloat(document.getElementById("s3_storage_gb").value) || 0);
         const putReqs = Math.max(0, parseInt(document.getElementById("s3_put_reqs").value) || 0);
         const getReqs = Math.max(0, parseInt(document.getElementById("s3_get_reqs").value) || 0);
         const retGb = Math.max(0, parseFloat(document.getElementById("s3_retrieval_gb").value) || 0);
 
+        const customPriceToggle = document.getElementById("s3_custom_price_toggle");
+        const customPriceVal = document.getElementById("s3_custom_price").value;
+        let storageRate, priceSource, isCustomPrice = false;
+
         const classInfo = pricing.s3.storage_classes[s3Class] || pricing.s3.storage_classes["Standard"];
-        const storageCost = storageGb * classInfo.storage_rate;
+        if (customPriceToggle && customPriceToggle.checked && customPriceVal !== "" && parseFloat(customPriceVal) >= 0) {
+            storageRate = parseFloat(customPriceVal);
+            priceSource = "User Custom Override";
+            isCustomPrice = true;
+        } else {
+            storageRate = classInfo.storage_rate;
+            priceSource = "AWS Official Catalog (Verified)";
+        }
+
+        const storageCost = storageGb * storageRate;
         const putCost = (putReqs / 1000) * pricing.s3.put_per_1000;
         const getCost = (getReqs / 1000) * pricing.s3.get_per_1000;
         const retCost = retGb * classInfo.retrieval_rate;
-        const s3Total = storageCost + putCost + getCost + retCost;
+        s3Subtotal = storageCost + putCost + getCost + retCost;
+        baselineMonthlyUSD += s3Subtotal;
 
-        baselineMonthlyUSD += s3Total;
         serviceResults.push({
             service_key: "s3",
             service_name: "Amazon Simple Storage Service (S3)",
             short_name: "S3",
             cost_type: "storage",
-            monthly_cost_usd: s3Total,
-            configuration: { s3Class, storageGb, putReqs, getReqs, retGb, rate: classInfo.storage_rate }
+            monthly_cost_usd: s3Subtotal,
+            configuration: { s3Class, storageGb, putReqs, getReqs, retGb, rate: storageRate, isCustomPrice }
         });
 
         lineItems.push({
             service_key: "s3",
             service_name: "Amazon S3",
-            component_name: `Storage Tier (${s3Class})`,
+            component_name: `Storage (${s3Class})`,
             cost_type: "storage",
             quantity: `${storageGb.toFixed(1)} GB-mo`,
-            unit_price: `$${classInfo.storage_rate.toFixed(4)}/GB-mo`,
-            formula: `${storageGb} GB × $${classInfo.storage_rate.toFixed(4)}`,
+            unit_price: `$${storageRate.toFixed(4)}/GB-mo`,
+            formula: `${storageGb} GB × $${storageRate.toFixed(4)}`,
             subtotal_usd: storageCost,
-            pricing_source: pricing.s3.source
+            pricing_source: priceSource,
+            is_custom: isCustomPrice
         });
 
         if (putReqs > 0) {
@@ -680,7 +853,8 @@ function calculateEstimate() {
                 unit_price: `$${pricing.s3.put_per_1000.toFixed(4)}/1k`,
                 formula: `(${putReqs} / 1,000) × $${pricing.s3.put_per_1000.toFixed(4)}`,
                 subtotal_usd: putCost,
-                pricing_source: "AWS S3 Tier 1 Requests"
+                pricing_source: "AWS Official Catalog (Verified)",
+                is_custom: false
             });
         }
 
@@ -694,47 +868,66 @@ function calculateEstimate() {
                 unit_price: `$${pricing.s3.get_per_1000.toFixed(4)}/1k`,
                 formula: `(${getReqs} / 1,000) × $${pricing.s3.get_per_1000.toFixed(4)}`,
                 subtotal_usd: getCost,
-                pricing_source: "AWS S3 Tier 2 Requests"
+                pricing_source: "AWS Official Catalog (Verified)",
+                is_custom: false
             });
         }
     }
+    updateCardSubtotal("subtotal_s3", s3Subtotal, symbol, mult, s3Enabled);
 
     // --- 3. Amazon RDS ---
-    if (document.getElementById("rds_enabled") && document.getElementById("rds_enabled").checked) {
+    const rdsEnabled = document.getElementById("rds_enabled") && document.getElementById("rds_enabled").checked;
+    let rdsSubtotal = 0;
+    if (rdsEnabled) {
+        const engine = document.getElementById("rds_engine").value;
         const instType = document.getElementById("rds_instance_type").value;
         const deployment = document.getElementById("rds_deployment").value;
         const storageGb = Math.max(0, parseFloat(document.getElementById("rds_storage_gb").value) || 0);
         const count = Math.max(1, parseInt(document.getElementById("rds_count").value) || 1);
         const hours = Math.max(0, parseFloat(document.getElementById("rds_hours").value) || 730);
 
+        const customPriceToggle = document.getElementById("rds_custom_price_toggle");
+        const customPriceVal = document.getElementById("rds_custom_price").value;
+        let baseHourly, priceSource, isCustomPrice = false;
+
         const instInfo = pricing.rds.instances[instType] || pricing.rds.instances["db.t3.micro"];
+        if (customPriceToggle && customPriceToggle.checked && customPriceVal !== "" && parseFloat(customPriceVal) >= 0) {
+            baseHourly = parseFloat(customPriceVal);
+            priceSource = "User Custom Override";
+            isCustomPrice = true;
+        } else {
+            baseHourly = instInfo.price_per_hr;
+            priceSource = "AWS Official Catalog (Verified)";
+        }
+
         const multiplier = (deployment === "Multi-AZ") ? pricing.rds.multi_az_multiplier : 1.0;
-        const hourlyRate = instInfo.price_per_hr * multiplier;
+        const hourlyRate = baseHourly * multiplier;
         const computeCost = hourlyRate * count * hours;
         const storageRate = pricing.rds.storage_gp3_per_gb * multiplier;
         const storageCost = count * storageGb * storageRate;
-        const rdsTotal = computeCost + storageCost;
+        rdsSubtotal = computeCost + storageCost;
+        baselineMonthlyUSD += rdsSubtotal;
 
-        baselineMonthlyUSD += rdsTotal;
         serviceResults.push({
             service_key: "rds",
             service_name: "Amazon Relational Database Service (RDS)",
             short_name: "RDS",
             cost_type: "database",
-            monthly_cost_usd: rdsTotal,
-            configuration: { instType, deployment, storageGb, count, hours, hourlyRate, baseHourly: instInfo.price_per_hr }
+            monthly_cost_usd: rdsSubtotal,
+            configuration: { engine, instType, deployment, storageGb, count, hours, hourlyRate, baseHourly, isCustomPrice }
         });
 
         lineItems.push({
             service_key: "rds",
             service_name: "Amazon RDS",
-            component_name: `Database Compute (${instType}, ${deployment})`,
+            component_name: `DB Compute (${instType}, ${deployment})`,
             cost_type: "database",
             quantity: `${count}x @ ${hours.toFixed(0)} hrs/mo`,
             unit_price: `$${hourlyRate.toFixed(4)}/hr`,
-            formula: `(${count} × ${hours}h) × ($${instInfo.price_per_hr.toFixed(4)} × ${multiplier}x)`,
+            formula: `(${count} × ${hours}h) × ($${baseHourly.toFixed(4)} × ${multiplier}x)`,
             subtotal_usd: computeCost,
-            pricing_source: pricing.rds.source
+            pricing_source: priceSource,
+            is_custom: isCustomPrice
         });
 
         lineItems.push({
@@ -746,12 +939,16 @@ function calculateEstimate() {
             unit_price: `$${storageRate.toFixed(3)}/GB-mo`,
             formula: `${count * storageGb} GB × $${storageRate.toFixed(3)}`,
             subtotal_usd: storageCost,
-            pricing_source: "AWS RDS Storage"
+            pricing_source: "AWS Official Catalog (Verified)",
+            is_custom: false
         });
     }
+    updateCardSubtotal("subtotal_rds", rdsSubtotal, symbol, mult, rdsEnabled);
 
     // --- 4. AWS Lambda ---
-    if (document.getElementById("lambda_enabled") && document.getElementById("lambda_enabled").checked) {
+    const lambdaEnabled = document.getElementById("lambda_enabled") && document.getElementById("lambda_enabled").checked;
+    let lambdaSubtotal = 0;
+    if (lambdaEnabled) {
         const reqCount = Math.max(0, parseInt(document.getElementById("lambda_requests").value) || 0);
         const durationMs = Math.max(1, parseFloat(document.getElementById("lambda_duration").value) || 200);
         const memoryMb = parseInt(document.getElementById("lambda_memory").value) || 512;
@@ -762,36 +959,49 @@ function calculateEstimate() {
         const memoryGb = memoryMb / 1024;
         const totalGbSec = reqCount * durationSec * memoryGb;
 
+        const customPriceToggle = document.getElementById("lambda_custom_price_toggle");
+        const customPriceVal = document.getElementById("lambda_custom_price").value;
+        let rateGbSec, priceSource, isCustomPrice = false;
+
+        if (customPriceToggle && customPriceToggle.checked && customPriceVal !== "" && parseFloat(customPriceVal) >= 0) {
+            rateGbSec = parseFloat(customPriceVal);
+            priceSource = "User Custom Override";
+            isCustomPrice = true;
+        } else {
+            rateGbSec = (arch === "arm64") ? pricing.lambda.compute_gb_sec_arm : pricing.lambda.compute_gb_sec_x86;
+            priceSource = "AWS Official Catalog (Verified)";
+        }
+
         const freeGbSec = applyFreeTier ? pricing.lambda.free_gb_sec : 0;
         const billedGbSec = Math.max(0, totalGbSec - freeGbSec);
-        const rateGbSec = (arch === "arm64") ? pricing.lambda.compute_gb_sec_arm : pricing.lambda.compute_gb_sec_x86;
         const computeCost = billedGbSec * rateGbSec;
 
         const freeReq = applyFreeTier ? pricing.lambda.free_requests : 0;
         const billedReq = Math.max(0, reqCount - freeReq);
         const reqCost = (billedReq / 1000000) * pricing.lambda.request_per_million;
-        const lambdaTotal = computeCost + reqCost;
+        lambdaSubtotal = computeCost + reqCost;
+        baselineMonthlyUSD += lambdaSubtotal;
 
-        baselineMonthlyUSD += lambdaTotal;
         serviceResults.push({
             service_key: "lambda",
             service_name: "AWS Lambda (Serverless Compute)",
             short_name: "Lambda",
             cost_type: "compute",
-            monthly_cost_usd: lambdaTotal,
-            configuration: { reqCount, durationMs, memoryMb, arch, applyFreeTier, totalGbSec }
+            monthly_cost_usd: lambdaSubtotal,
+            configuration: { reqCount, durationMs, memoryMb, arch, applyFreeTier, totalGbSec, isCustomPrice }
         });
 
         lineItems.push({
             service_key: "lambda",
             service_name: "AWS Lambda",
-            component_name: `Execution Time (${arch}, ${memoryMb} MB)`,
+            component_name: `Compute Execution (${arch}, ${memoryMb} MB)`,
             cost_type: "compute",
             quantity: `${totalGbSec.toFixed(1)} GB-s (${billedGbSec.toFixed(1)} billed)`,
             unit_price: `$${rateGbSec.toFixed(8)}/GB-s`,
             formula: `(${billedGbSec.toFixed(0)} billed GB-s) × $${rateGbSec.toFixed(8)}`,
             subtotal_usd: computeCost,
-            pricing_source: pricing.lambda.source
+            pricing_source: priceSource,
+            is_custom: isCustomPrice
         });
 
         lineItems.push({
@@ -803,35 +1013,52 @@ function calculateEstimate() {
             unit_price: `$${pricing.lambda.request_per_million.toFixed(2)}/1M`,
             formula: `(${billedReq} / 1M) × $${pricing.lambda.request_per_million.toFixed(2)}`,
             subtotal_usd: reqCost,
-            pricing_source: "AWS Lambda Requests"
+            pricing_source: "AWS Official Catalog (Verified)",
+            is_custom: false
         });
     }
+    updateCardSubtotal("subtotal_lambda", lambdaSubtotal, symbol, mult, lambdaEnabled);
 
     // --- 5. Amazon CloudWatch ---
-    if (document.getElementById("cw_enabled") && document.getElementById("cw_enabled").checked) {
+    const cwEnabled = document.getElementById("cw_enabled") && document.getElementById("cw_enabled").checked;
+    let cwSubtotal = 0;
+    if (cwEnabled) {
         const ingestGb = Math.max(0, parseFloat(document.getElementById("cw_ingest_gb").value) || 0);
         const storageGb = Math.max(0, parseFloat(document.getElementById("cw_storage_gb").value) || 0);
         const metrics = Math.max(0, parseInt(document.getElementById("cw_metrics").value) || 0);
         const applyFreeTier = document.getElementById("cw_freetier").checked;
 
+        const customPriceToggle = document.getElementById("cw_custom_price_toggle");
+        const customPriceVal = document.getElementById("cw_custom_price").value;
+        let ingestRate, priceSource, isCustomPrice = false;
+
+        if (customPriceToggle && customPriceToggle.checked && customPriceVal !== "" && parseFloat(customPriceVal) >= 0) {
+            ingestRate = parseFloat(customPriceVal);
+            priceSource = "User Custom Override";
+            isCustomPrice = true;
+        } else {
+            ingestRate = pricing.cloudwatch.ingestion_per_gb;
+            priceSource = "AWS Official Catalog (Verified)";
+        }
+
         const freeIngest = applyFreeTier ? pricing.cloudwatch.free_ingest_gb : 0;
         const billedIngest = Math.max(0, ingestGb - freeIngest);
-        const ingestCost = billedIngest * pricing.cloudwatch.ingestion_per_gb;
+        const ingestCost = billedIngest * ingestRate;
         const storageCost = storageGb * pricing.cloudwatch.storage_per_gb;
 
         const freeMetrics = applyFreeTier ? pricing.cloudwatch.free_metrics : 0;
         const billedMetrics = Math.max(0, metrics - freeMetrics);
         const metricsCost = billedMetrics * pricing.cloudwatch.metric_per_month;
-        const cwTotal = ingestCost + storageCost + metricsCost;
+        cwSubtotal = ingestCost + storageCost + metricsCost;
+        baselineMonthlyUSD += cwSubtotal;
 
-        baselineMonthlyUSD += cwTotal;
         serviceResults.push({
             service_key: "cloudwatch",
             service_name: "Amazon CloudWatch (Logs & Metrics)",
             short_name: "CloudWatch",
             cost_type: "monitoring",
-            monthly_cost_usd: cwTotal,
-            configuration: { ingestGb, storageGb, metrics, applyFreeTier }
+            monthly_cost_usd: cwSubtotal,
+            configuration: { ingestGb, storageGb, metrics, applyFreeTier, isCustomPrice }
         });
 
         lineItems.push({
@@ -840,10 +1067,11 @@ function calculateEstimate() {
             component_name: "Logs Ingestion",
             cost_type: "monitoring",
             quantity: `${ingestGb.toFixed(1)} GB (${billedIngest.toFixed(1)} billed)`,
-            unit_price: `$${pricing.cloudwatch.ingestion_per_gb.toFixed(2)}/GB`,
-            formula: `(${billedIngest.toFixed(1)} GB) × $${pricing.cloudwatch.ingestion_per_gb.toFixed(2)}`,
+            unit_price: `$${ingestRate.toFixed(2)}/GB`,
+            formula: `max(0, ${ingestGb.toFixed(1)} - ${freeIngest.toFixed(1)}) × $${ingestRate.toFixed(2)}`,
             subtotal_usd: ingestCost,
-            pricing_source: pricing.cloudwatch.source
+            pricing_source: priceSource,
+            is_custom: isCustomPrice
         });
 
         lineItems.push({
@@ -855,30 +1083,47 @@ function calculateEstimate() {
             unit_price: `$${pricing.cloudwatch.storage_per_gb.toFixed(3)}/GB-mo`,
             formula: `${storageGb} GB × $${pricing.cloudwatch.storage_per_gb.toFixed(3)}`,
             subtotal_usd: storageCost,
-            pricing_source: "AWS CloudWatch Storage"
+            pricing_source: "AWS Official Catalog (Verified)",
+            is_custom: false
         });
     }
+    updateCardSubtotal("subtotal_cw", cwSubtotal, symbol, mult, cwEnabled);
 
-    // --- 6. Amazon VPC Networking ---
-    if (document.getElementById("vpc_enabled") && document.getElementById("vpc_enabled").checked) {
+    // --- 6. Amazon VPC ---
+    const vpcEnabled = document.getElementById("vpc_enabled") && document.getElementById("vpc_enabled").checked;
+    let vpcSubtotal = 0;
+    if (vpcEnabled) {
         const natCount = Math.max(0, parseInt(document.getElementById("vpc_nat_count").value) || 0);
         const natHours = Math.max(0, parseFloat(document.getElementById("vpc_nat_hours").value) || 730);
         const natDataGb = Math.max(0, parseFloat(document.getElementById("vpc_nat_data_gb").value) || 0);
         const publicIps = Math.max(0, parseInt(document.getElementById("vpc_public_ips").value) || 0);
 
-        const natHourlyCost = natCount * natHours * pricing.vpc.nat_hourly;
+        const customPriceToggle = document.getElementById("vpc_custom_price_toggle");
+        const customPriceVal = document.getElementById("vpc_custom_price").value;
+        let natHourly, priceSource, isCustomPrice = false;
+
+        if (customPriceToggle && customPriceToggle.checked && customPriceVal !== "" && parseFloat(customPriceVal) >= 0) {
+            natHourly = parseFloat(customPriceVal);
+            priceSource = "User Custom Override";
+            isCustomPrice = true;
+        } else {
+            natHourly = pricing.vpc.nat_hourly;
+            priceSource = "AWS Official Catalog (Verified)";
+        }
+
+        const natHourlyCost = natCount * natHours * natHourly;
         const natDataCost = natDataGb * pricing.vpc.nat_data_per_gb;
         const ipCost = publicIps * natHours * pricing.vpc.public_ipv4_hourly;
-        const vpcTotal = natHourlyCost + natDataCost + ipCost;
+        vpcSubtotal = natHourlyCost + natDataCost + ipCost;
+        baselineMonthlyUSD += vpcSubtotal;
 
-        baselineMonthlyUSD += vpcTotal;
         serviceResults.push({
             service_key: "vpc",
             service_name: "Amazon VPC Networking (NAT & IPs)",
             short_name: "VPC",
             cost_type: "networking",
-            monthly_cost_usd: vpcTotal,
-            configuration: { natCount, natHours, natDataGb, publicIps }
+            monthly_cost_usd: vpcSubtotal,
+            configuration: { natCount, natHours, natDataGb, publicIps, isCustomPrice }
         });
 
         lineItems.push({
@@ -887,10 +1132,11 @@ function calculateEstimate() {
             component_name: "NAT Gateway Uptime Hours",
             cost_type: "networking",
             quantity: `${natCount} GW @ ${natHours.toFixed(0)} hrs`,
-            unit_price: `$${pricing.vpc.nat_hourly.toFixed(3)}/hr`,
-            formula: `${natCount} × ${natHours}h × $${pricing.vpc.nat_hourly.toFixed(3)}`,
+            unit_price: `$${natHourly.toFixed(3)}/hr`,
+            formula: `${natCount} × ${natHours}h × $${natHourly.toFixed(3)}`,
             subtotal_usd: natHourlyCost,
-            pricing_source: pricing.vpc.source
+            pricing_source: priceSource,
+            is_custom: isCustomPrice
         });
 
         if (natDataGb > 0) {
@@ -903,12 +1149,22 @@ function calculateEstimate() {
                 unit_price: `$${pricing.vpc.nat_data_per_gb.toFixed(3)}/GB`,
                 formula: `${natDataGb} GB × $${pricing.vpc.nat_data_per_gb.toFixed(3)}`,
                 subtotal_usd: natDataCost,
-                pricing_source: "AWS NAT Gateway Data"
+                pricing_source: "AWS Official Catalog (Verified)",
+                is_custom: false
             });
         }
     }
+    updateCardSubtotal("subtotal_vpc", vpcSubtotal, symbol, mult, vpcEnabled);
 
-    // Heuristic Optimization Recommendations
+    // Update bottom summary bar
+    const bottomActive = document.getElementById("bottomActiveServicesCount");
+    const bottomMonthly = document.getElementById("bottomTotalMonthly");
+    const bottomAnnual = document.getElementById("bottomTotalAnnual");
+    if (bottomActive) bottomActive.textContent = `${serviceResults.length} Service${serviceResults.length === 1 ? '' : 's'} Active`;
+    if (bottomMonthly) bottomMonthly.textContent = `${symbol}${formatCurrency(baselineMonthlyUSD * mult)}`;
+    if (bottomAnnual) bottomAnnual.textContent = `${symbol}${formatCurrency(baselineMonthlyUSD * 12 * mult)}`;
+
+    // Generate heuristic optimization recommendations
     const recommendations = generateRecommendations(serviceResults, pricing);
 
     // Save baseline state
@@ -923,8 +1179,24 @@ function calculateEstimate() {
         calculatedAt: new Date().toISOString()
     };
 
-    // Apply active filters and refresh all UI components
-    applyFiltersAndRender();
+    saveArchitectureToLocalStorage();
+
+    // If Dashboard is currently active, re-render it
+    if (activeTab === "DASHBOARD") {
+        applyFiltersAndRender();
+    }
+}
+
+function updateCardSubtotal(elemId, subtotalUSD, symbol, mult, isEnabled) {
+    const elem = document.getElementById(elemId);
+    if (!elem) return;
+    if (isEnabled) {
+        elem.textContent = `${symbol}${formatCurrency(subtotalUSD * mult)}/mo`;
+        elem.className = "font-bold text-slate-900 font-mono";
+    } else {
+        elem.textContent = "Excluded";
+        elem.className = "font-semibold text-slate-400 italic text-[11px]";
+    }
 }
 
 function generateRecommendations(serviceResults, pricing) {
@@ -956,7 +1228,7 @@ function generateRecommendations(serviceResults, pricing) {
                     savings_pct: pct,
                     priority: "HIGH",
                     assumptions: "Applicable to development or testing environments not accessed outside working hours.",
-                    trade_offs: "Instances stopped overnight and on weekends. Managed via AWS EventBridge + Lambda or AWS Systems Manager Quick Setup."
+                    trade_offs: "Instances stopped overnight and on weekends. Configure via AWS EventBridge + Lambda or Systems Manager."
                 });
             }
         }
@@ -1024,7 +1296,7 @@ function generateRecommendations(serviceResults, pricing) {
     if (svcMap.rds) {
         const cfg = svcMap.rds.configuration;
         if (cfg.deployment === "Multi-AZ") {
-            const optHourly = cfg.baseHourly; // Single-AZ
+            const optHourly = cfg.baseHourly;
             const optCompute = optHourly * cfg.count * cfg.hours;
             const optStorage = cfg.count * cfg.storageGb * pricing.rds.storage_gp3_per_gb;
             const optTotal = optCompute + optStorage;
@@ -1122,7 +1394,6 @@ function applyFiltersAndRender() {
     const mult = isINR ? USD_TO_INR_RATE : 1.0;
     const symbol = isINR ? "₹" : "$";
 
-    // Period multiplier & labels
     let periodMultiplier = 1.0;
     let periodLabel = "Current Month";
     let periodSavingsLabel = "Current Month (Projected)";
@@ -1161,17 +1432,14 @@ function applyFiltersAndRender() {
         filteredLineItems = filteredLineItems.filter(item => item.cost_type === currentFilters.costType);
     }
 
-    // Filter service results based on remaining line items
+    // Filter service results based on active line items
     const activeServiceKeys = new Set(filteredLineItems.map(item => item.service_key));
     const filteredServices = rawCalculationState.serviceResults
         .filter(s => activeServiceKeys.has(s.service_key))
         .map(s => {
             const svcItems = filteredLineItems.filter(item => item.service_key === s.service_key);
             const totalForSvc = svcItems.reduce((acc, it) => acc + it.subtotal_usd, 0);
-            return {
-                ...s,
-                monthly_cost_usd: totalForSvc
-            };
+            return { ...s, monthly_cost_usd: totalForSvc };
         });
 
     // Filter recommendations
@@ -1188,7 +1456,10 @@ function applyFiltersAndRender() {
 
     // Calculate aggregated metrics
     const monthlyBaselineUSD = filteredLineItems.reduce((acc, it) => acc + it.subtotal_usd, 0);
-    const monthlySavingsUSD = filteredRecs.reduce((acc, r) => acc + r.savings_usd, 0);
+
+    // Savings only from applied recommendations
+    const appliedRecs = filteredRecs.filter(r => appliedRecommendationIds.has(r.id));
+    const monthlySavingsUSD = appliedRecs.reduce((acc, r) => acc + r.savings_usd, 0);
     const monthlyOptimizedUSD = Math.max(0, monthlyBaselineUSD - monthlySavingsUSD);
 
     const scaledBaselineUSD = monthlyBaselineUSD * periodMultiplier;
@@ -1199,7 +1470,6 @@ function applyFiltersAndRender() {
         ? ((monthlySavingsUSD / monthlyBaselineUSD) * 100).toFixed(1)
         : "0.0";
 
-    // Update Filter Badge UI
     updateFilterBadge();
 
     // 1. Update Hero Cards
@@ -1209,10 +1479,12 @@ function applyFiltersAndRender() {
     const heroTotalAmount = document.getElementById("heroTotalAmount");
     const heroTotalPeriodLabel = document.getElementById("heroTotalPeriodLabel");
     const heroOptimizedSpendSubtext = document.getElementById("heroOptimizedSpendSubtext");
+    const heroAppliedRecsCount = document.getElementById("heroAppliedRecsCount");
 
     if (heroSavingsAmount) heroSavingsAmount.textContent = `${symbol}${formatCurrency(scaledSavingsUSD * mult)}`;
     if (heroSavingsPct) heroSavingsPct.textContent = `~${savingsPct}% Cost Reduction`;
     if (heroSavingsPeriodLabel) heroSavingsPeriodLabel.textContent = `Period: ${periodSavingsLabel}`;
+    if (heroAppliedRecsCount) heroAppliedRecsCount.textContent = `${appliedRecs.length} of ${filteredRecs.length} Optimizations Applied`;
     if (heroTotalAmount) heroTotalAmount.textContent = `${symbol}${formatCurrency(scaledBaselineUSD * mult)}`;
     if (heroTotalPeriodLabel) heroTotalPeriodLabel.textContent = `Period: ${periodLabel}`;
     if (heroOptimizedSpendSubtext) heroOptimizedSpendSubtext.textContent = `Optimized plan: ${symbol}${formatCurrency(scaledOptimizedUSD * mult)}${periodSuffix}`;
@@ -1231,7 +1503,7 @@ function applyFiltersAndRender() {
     // 3. Update Chart Currency Labels
     const chartCurrencyLabel = document.getElementById("chartCurrencyLabel");
     if (chartCurrencyLabel) {
-        chartCurrencyLabel.textContent = `Currency: ${currency} (${symbol}) • Region: ${rawCalculationState.region} • Verified AWS On-Demand Catalog`;
+        chartCurrencyLabel.textContent = `Currency: ${currency} (${symbol}) • Region: ${rawCalculationState.region} • Verified Official Catalog`;
     }
 
     // 4. Render Main Stacked Bar Chart
@@ -1292,15 +1564,14 @@ function renderMainStackedBarChart(services, lineItems, baselineTotal, optimized
     }
 
     const months = ["Nov 2025", "Dec 2025", "Jan 2026", "Feb 2026", "Mar 2026", "Apr 2026 (Est)"];
-    const monthMultipliers = [0.85, 0.90, 0.94, 0.98, 1.00, 1.00]; // Realistic historical trajectory
+    const monthMultipliers = [0.85, 0.90, 0.94, 0.98, 1.00, 1.00];
 
     let datasets = [];
 
     if (currentFilters.chartGrouping === "cost_type") {
-        // Group by cost category (Compute, Storage, Database, Networking, Monitoring)
         const categories = ["compute", "storage", "database", "networking", "monitoring"];
         categories.forEach(cat => {
-            const catItems = lineItems.filter(i => i.cost_type === cat);
+            const catItems = (lineItems || []).filter(i => i.cost_type === cat);
             const catTotalUSD = catItems.reduce((acc, i) => acc + i.subtotal_usd, 0);
 
             if (catTotalUSD > 0 || currentFilters.costType === cat) {
@@ -1316,7 +1587,6 @@ function renderMainStackedBarChart(services, lineItems, baselineTotal, optimized
             }
         });
     } else if (currentFilters.chartGrouping === "monthly_trend") {
-        // Clustered comparison: Baseline Spend vs Optimized Spend per month
         datasets = [
             {
                 label: `Baseline Monthly Spend (${symbol})`,
@@ -1336,8 +1606,7 @@ function renderMainStackedBarChart(services, lineItems, baselineTotal, optimized
             }
         ];
     } else {
-        // Default: Group by Service Name (Stacked)
-        services.forEach(svc => {
+        (services || []).forEach(svc => {
             const cfg = SERVICE_COLORS[svc.service_key] || { bg: "#64748b", border: "#475569", name: svc.short_name };
             datasets.push({
                 label: cfg.name,
@@ -1367,26 +1636,15 @@ function renderMainStackedBarChart(services, lineItems, baselineTotal, optimized
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            interaction: {
-                mode: "index",
-                intersect: false
-            },
+            interaction: { mode: "index", intersect: false },
             plugins: {
                 legend: {
                     position: "top",
                     align: "end",
-                    labels: {
-                        color: "#475569",
-                        boxWidth: 12,
-                        font: { size: 11, weight: "600", family: "Inter" }
-                    }
+                    labels: { color: "#475569", boxWidth: 12, font: { size: 11, weight: "600", family: "Inter" } }
                 },
                 tooltip: {
                     backgroundColor: "#0f172a",
-                    titleColor: "#f8fafc",
-                    bodyColor: "#f8fafc",
-                    padding: 10,
-                    cornerRadius: 8,
                     callbacks: {
                         label: (ctx) => ` ${ctx.dataset.label}: ${symbol}${formatCurrency(parseFloat(ctx.raw))}`
                     }
@@ -1396,7 +1654,7 @@ function renderMainStackedBarChart(services, lineItems, baselineTotal, optimized
                 x: {
                     stacked: currentFilters.chartGrouping !== "monthly_trend",
                     grid: { display: false },
-                    ticks: { color: "#64748b", font: { size: 11, weight: "500", family: "Inter" } }
+                    ticks: { color: "#64748b", font: { size: 11, family: "Inter" } }
                 },
                 y: {
                     stacked: currentFilters.chartGrouping !== "monthly_trend",
@@ -1418,13 +1676,11 @@ function renderCostDoughnutChart(services, symbol, mult) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
 
-    if (costDoughnutChartInstance) {
-        costDoughnutChartInstance.destroy();
-    }
+    if (costDoughnutChartInstance) costDoughnutChartInstance.destroy();
 
-    const labels = services.map(s => (SERVICE_COLORS[s.service_key] ? SERVICE_COLORS[s.service_key].name : s.short_name));
-    const values = services.map(s => (s.monthly_cost_usd * mult).toFixed(2));
-    const colors = services.map(s => (SERVICE_COLORS[s.service_key] ? SERVICE_COLORS[s.service_key].bg : "#94a3b8"));
+    const labels = (services || []).map(s => (SERVICE_COLORS[s.service_key] ? SERVICE_COLORS[s.service_key].name : s.short_name));
+    const values = (services || []).map(s => (s.monthly_cost_usd * mult).toFixed(2));
+    const colors = (services || []).map(s => (SERVICE_COLORS[s.service_key] ? SERVICE_COLORS[s.service_key].bg : "#94a3b8"));
 
     costDoughnutChartInstance = new Chart(ctx, {
         type: "doughnut",
@@ -1443,11 +1699,7 @@ function renderCostDoughnutChart(services, symbol, mult) {
             plugins: {
                 legend: {
                     position: "bottom",
-                    labels: {
-                        color: "#475569",
-                        boxWidth: 10,
-                        font: { size: 10, family: "Inter" }
-                    }
+                    labels: { color: "#475569", boxWidth: 10, font: { size: 10, family: "Inter" } }
                 },
                 tooltip: {
                     backgroundColor: "#0f172a",
@@ -1467,9 +1719,7 @@ function renderBeforeAfterCompChart(baselineTotal, optimizedTotal, savingsTotal,
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
 
-    if (beforeAfterCompChartInstance) {
-        beforeAfterCompChartInstance.destroy();
-    }
+    if (beforeAfterCompChartInstance) beforeAfterCompChartInstance.destroy();
 
     if (savingsLabel) {
         savingsLabel.textContent = `Save ${symbol}${formatCurrency(savingsTotal * mult)}/mo (${savingsPct}%)`;
@@ -1523,7 +1773,7 @@ function renderBeforeAfterCompChart(baselineTotal, optimizedTotal, savingsTotal,
 }
 
 // ========================================================
-// 6. Line Items Table & Recommendations Rendering
+// 6. Detailed Table & Interactive Recommendations
 // ========================================================
 
 function renderLineItemsTable(lineItems, symbol, mult) {
@@ -1535,14 +1785,14 @@ function renderLineItemsTable(lineItems, symbol, mult) {
 
     if (notice) {
         if (currentFilters.service !== "ALL" || currentFilters.costType !== "ALL") {
-            notice.textContent = `Filtered View (${lineItems.length} line item${lineItems.length === 1 ? '' : 's'})`;
+            notice.textContent = `Filtered View (${lineItems.length} line items)`;
         } else {
             notice.textContent = "Full Audit View";
         }
     }
 
     if (lineItems.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400 font-medium">No components match the active service/cost-type filters. Adjust the filters above to inspect line items.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400 font-medium">No components match active filters. Adjust service/cost-type filters above.</td></tr>`;
         return;
     }
 
@@ -1557,7 +1807,11 @@ function renderLineItemsTable(lineItems, symbol, mult) {
             <td class="py-3 px-3 text-slate-500 font-mono text-[11px]">${item.unit_price}</td>
             <td class="py-3 px-3 text-slate-500 font-mono text-[11px]">${item.formula}</td>
             <td class="py-3 px-3 text-right font-bold text-slate-900 font-mono">${symbol}${formatCurrency(parseFloat(subtotal))}</td>
-            <td class="py-3 px-3 text-slate-400 text-[11px]">${item.pricing_source}</td>
+            <td class="py-3 px-3 text-xs">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${item.is_custom ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}">
+                    ${item.pricing_source}
+                </span>
+            </td>
         `;
         tbody.appendChild(tr);
     });
@@ -1575,7 +1829,7 @@ function renderRecommendationsCards(recs, symbol, mult) {
                 <span class="text-3xl block">✨</span>
                 <p class="font-bold text-slate-800 text-sm">Optimal Architecture Detected</p>
                 <p class="text-xs text-slate-500 max-w-md mx-auto">
-                    Your current configurations reflect efficient resource provisioning. No high-impact rightsizing triggers were flagged under active filters.
+                    Your configurations reflect efficient resource provisioning. No high-impact rightsizing triggers were flagged under active filters.
                 </p>
             </div>
         `;
@@ -1583,8 +1837,10 @@ function renderRecommendationsCards(recs, symbol, mult) {
     }
 
     recs.forEach(rec => {
+        const isApplied = appliedRecommendationIds.has(rec.id);
         const card = document.createElement("div");
-        card.className = "rec-card p-5 space-y-3";
+        card.className = `rec-card p-5 space-y-3 transition border ${isApplied ? 'border-emerald-300 shadow-sm' : 'border-slate-200 opacity-75'}`;
+
         const currentCost = (rec.current_cost_usd * mult).toFixed(2);
         const optCost = (rec.optimized_cost_usd * mult).toFixed(2);
         const savingsCost = (rec.savings_usd * mult).toFixed(2);
@@ -1597,9 +1853,14 @@ function renderRecommendationsCards(recs, symbol, mult) {
                     </span>
                     <h4 class="text-sm font-bold text-slate-900 mt-1.5">${rec.title}</h4>
                 </div>
-                <span class="px-2 py-0.5 text-[10px] font-bold rounded ${rec.priority === 'HIGH' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}">
-                    ${rec.priority} PRIORITY
-                </span>
+                <div class="flex items-center gap-2">
+                    <span class="px-2 py-0.5 text-[10px] font-bold rounded ${rec.priority === 'HIGH' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}">
+                        ${rec.priority}
+                    </span>
+                    <button class="toggle-rec-btn px-2.5 py-1 text-xs font-bold rounded-lg transition ${isApplied ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}" data-rec-id="${rec.id}">
+                        ${isApplied ? '✓ Applied' : '+ Apply'}
+                    </button>
+                </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3 rounded-lg border border-slate-100">
@@ -1625,12 +1886,75 @@ function renderRecommendationsCards(recs, symbol, mult) {
                 <p><strong>Trade-offs / Action:</strong> ${rec.trade_offs}</p>
             </div>
         `;
+
+        const toggleBtn = card.querySelector(".toggle-rec-btn");
+        toggleBtn.addEventListener("click", () => {
+            if (appliedRecommendationIds.has(rec.id)) {
+                appliedRecommendationIds.delete(rec.id);
+            } else {
+                appliedRecommendationIds.add(rec.id);
+            }
+            applyFiltersAndRender();
+        });
+
         container.appendChild(card);
     });
 }
 
 // ========================================================
-// 7. Report Exports & S3 Archival
+// 7. Comparison Modal Data Population
+// ========================================================
+
+function populateComparisonModal() {
+    if (!rawCalculationState) calculateEstimate();
+
+    const currencySelect = document.getElementById("globalCurrencySelect");
+    const currency = currencySelect ? currencySelect.value : "USD";
+    const isINR = (currency === "INR");
+    const mult = isINR ? USD_TO_INR_RATE : 1.0;
+    const symbol = isINR ? "₹" : "$";
+
+    const baselineUSD = rawCalculationState.baselineMonthlyUSD;
+    const appliedRecs = rawCalculationState.recommendations.filter(r => appliedRecommendationIds.has(r.id));
+    const savingsUSD = appliedRecs.reduce((a, r) => a + r.savings_usd, 0);
+    const optUSD = Math.max(0, baselineUSD - savingsUSD);
+    const pct = (baselineUSD > 0) ? ((savingsUSD / baselineUSD) * 100).toFixed(1) : "0.0";
+
+    const modalBaselineMonthly = document.getElementById("modalBaselineMonthly");
+    const modalBaselineAnnual = document.getElementById("modalBaselineAnnual");
+    const modalOptimizedMonthly = document.getElementById("modalOptimizedMonthly");
+    const modalOptimizedAnnual = document.getElementById("modalOptimizedAnnual");
+    const modalSavingsHighlight = document.getElementById("modalSavingsHighlight");
+
+    if (modalBaselineMonthly) modalBaselineMonthly.textContent = `${symbol}${formatCurrency(baselineUSD * mult)}/mo`;
+    if (modalBaselineAnnual) modalBaselineAnnual.textContent = `Annual Projection: ${symbol}${formatCurrency(baselineUSD * 12 * mult)}/yr`;
+    if (modalOptimizedMonthly) modalOptimizedMonthly.textContent = `${symbol}${formatCurrency(optUSD * mult)}/mo`;
+    if (modalOptimizedAnnual) modalOptimizedAnnual.textContent = `Annual Projection: ${symbol}${formatCurrency(optUSD * 12 * mult)}/yr`;
+    if (modalSavingsHighlight) modalSavingsHighlight.textContent = `Net Savings: ${symbol}${formatCurrency(savingsUSD * mult)}/mo (~${pct}% Reduction)`;
+
+    const tbody = document.getElementById("modalComparisonTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    rawCalculationState.serviceResults.forEach(svc => {
+        const svcRec = rawCalculationState.recommendations.find(r => r.service_key === svc.service_key && appliedRecommendationIds.has(r.id));
+        const currentCost = (svc.monthly_cost_usd * mult).toFixed(2);
+        const optCost = svcRec ? ((svc.monthly_cost_usd - svcRec.savings_usd) * mult).toFixed(2) : currentCost;
+        const savingsText = svcRec ? `${symbol}${formatCurrency(svcRec.savings_usd * mult)}/mo` : "$0.00";
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td class="p-2.5 font-bold text-slate-900">${svc.short_name}</td>
+            <td class="p-2.5 text-slate-700">${symbol}${formatCurrency(parseFloat(currentCost))}</td>
+            <td class="p-2.5 text-emerald-700 font-semibold">${symbol}${formatCurrency(parseFloat(optCost))}</td>
+            <td class="p-2.5 text-right font-bold text-emerald-600">${savingsText}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// ========================================================
+// 8. Report Exports & S3 Archival
 // ========================================================
 
 function exportEstimateJson() {
@@ -1659,7 +1983,7 @@ function exportEstimateJson() {
         services_breakdown: rawCalculationState.serviceResults,
         line_items_detailed: rawCalculationState.lineItems,
         optimization_recommendations: rawCalculationState.recommendations,
-        disclaimer: "All figures are mathematical projections derived from explicit user inputs and verified AWS On-Demand catalogs. Not an official AWS billing statement."
+        disclaimer: "All figures are mathematical projections derived from user inputs and official AWS On-Demand catalogs. Not an official AWS invoice."
     };
 
     const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
@@ -1690,7 +2014,7 @@ function exportEstimateCsv() {
     csv += `"Baseline Monthly Cost","${symbol}${formatCurrency(rawCalculationState.baselineMonthlyUSD * mult)}"\n`;
     csv += `"Baseline Annual Cost","${symbol}${formatCurrency(rawCalculationState.baselineMonthlyUSD * 12 * mult)}"\n\n`;
 
-    csv += `"AWS Service","Component","Cost Category","Configured Quantity","Unit Price","Calculation Formula","Subtotal (${currency})","Pricing Source"\n`;
+    csv += `"AWS Service","Component","Cost Category","Configured Quantity","Unit Price","Calculation Formula","Subtotal (${currency})","Pricing Status"\n`;
     rawCalculationState.lineItems.forEach(item => {
         const subtotal = (item.subtotal_usd * mult).toFixed(2);
         csv += `"${item.service_name}","${item.component_name}","${item.cost_type}","${item.quantity}","${item.unit_price}","${item.formula}","${subtotal}","${item.pricing_source}"\n`;
@@ -1760,7 +2084,7 @@ async function saveEstimateToS3() {
 }
 
 // ========================================================
-// 8. Mode 2: Live AWS Account Billing Telemetry
+// 9. Mode 2: Live AWS Account Billing Telemetry
 // ========================================================
 
 async function loadActualBillingData() {
@@ -1890,8 +2214,122 @@ function renderActualGovernanceRecs() {
 }
 
 // ========================================================
-// 9. Utility Helpers
+// 10. Local Storage Persistence & Utilities
 // ========================================================
+
+function saveArchitectureToLocalStorage() {
+    try {
+        const state = {
+            ec2: {
+                enabled: document.getElementById("ec2_enabled").checked,
+                type: document.getElementById("ec2_instance_type").value,
+                count: document.getElementById("ec2_count").value,
+                hoursDay: document.getElementById("ec2_hours_day").value,
+                daysMonth: document.getElementById("ec2_days_month").value,
+                ebsGb: document.getElementById("ec2_ebs_gb").value,
+                transferGb: document.getElementById("ec2_transfer_gb").value
+            },
+            s3: {
+                enabled: document.getElementById("s3_enabled").checked,
+                s3Class: document.getElementById("s3_class").value,
+                storageGb: document.getElementById("s3_storage_gb").value,
+                putReqs: document.getElementById("s3_put_reqs").value,
+                getReqs: document.getElementById("s3_get_reqs").value
+            },
+            rds: {
+                enabled: document.getElementById("rds_enabled").checked,
+                engine: document.getElementById("rds_engine").value,
+                type: document.getElementById("rds_instance_type").value,
+                deployment: document.getElementById("rds_deployment").value,
+                storageGb: document.getElementById("rds_storage_gb").value,
+                count: document.getElementById("rds_count").value
+            },
+            lambda: {
+                enabled: document.getElementById("lambda_enabled").checked,
+                requests: document.getElementById("lambda_requests").value,
+                duration: document.getElementById("lambda_duration").value,
+                memory: document.getElementById("lambda_memory").value,
+                arch: document.getElementById("lambda_arch").value
+            },
+            cw: {
+                enabled: document.getElementById("cw_enabled").checked,
+                ingestGb: document.getElementById("cw_ingest_gb").value,
+                storageGb: document.getElementById("cw_storage_gb").value,
+                metrics: document.getElementById("cw_metrics").value
+            },
+            vpc: {
+                enabled: document.getElementById("vpc_enabled").checked,
+                natCount: document.getElementById("vpc_nat_count").value,
+                natHours: document.getElementById("vpc_nat_hours").value,
+                natDataGb: document.getElementById("vpc_nat_data_gb").value,
+                publicIps: document.getElementById("vpc_public_ips").value
+            }
+        };
+        localStorage.setItem("aws_cost_estimator_state", JSON.stringify(state));
+    } catch (e) {
+        // Safe fallback if local storage is blocked
+    }
+}
+
+function loadSavedArchitecture() {
+    try {
+        const raw = localStorage.getItem("aws_cost_estimator_state");
+        if (!raw) return;
+        const state = JSON.parse(raw);
+
+        if (state.ec2) {
+            setServiceChecked("ec2", state.ec2.enabled !== false);
+            if (state.ec2.type) document.getElementById("ec2_instance_type").value = state.ec2.type;
+            if (state.ec2.count) document.getElementById("ec2_count").value = state.ec2.count;
+            if (state.ec2.hoursDay) document.getElementById("ec2_hours_day").value = state.ec2.hoursDay;
+            if (state.ec2.daysMonth) document.getElementById("ec2_days_month").value = state.ec2.daysMonth;
+            if (state.ec2.ebsGb) document.getElementById("ec2_ebs_gb").value = state.ec2.ebsGb;
+            if (state.ec2.transferGb) document.getElementById("ec2_transfer_gb").value = state.ec2.transferGb;
+        }
+
+        if (state.s3) {
+            setServiceChecked("s3", state.s3.enabled !== false);
+            if (state.s3.s3Class) document.getElementById("s3_class").value = state.s3.s3Class;
+            if (state.s3.storageGb) document.getElementById("s3_storage_gb").value = state.s3.storageGb;
+            if (state.s3.putReqs) document.getElementById("s3_put_reqs").value = state.s3.putReqs;
+            if (state.s3.getReqs) document.getElementById("s3_get_reqs").value = state.s3.getReqs;
+        }
+
+        if (state.rds) {
+            setServiceChecked("rds", state.rds.enabled !== false);
+            if (state.rds.engine) document.getElementById("rds_engine").value = state.rds.engine;
+            if (state.rds.type) document.getElementById("rds_instance_type").value = state.rds.type;
+            if (state.rds.deployment) document.getElementById("rds_deployment").value = state.rds.deployment;
+            if (state.rds.storageGb) document.getElementById("rds_storage_gb").value = state.rds.storageGb;
+            if (state.rds.count) document.getElementById("rds_count").value = state.rds.count;
+        }
+
+        if (state.lambda) {
+            setServiceChecked("lambda", state.lambda.enabled !== false);
+            if (state.lambda.requests) document.getElementById("lambda_requests").value = state.lambda.requests;
+            if (state.lambda.duration) document.getElementById("lambda_duration").value = state.lambda.duration;
+            if (state.lambda.memory) document.getElementById("lambda_memory").value = state.lambda.memory;
+            if (state.lambda.arch) document.getElementById("lambda_arch").value = state.lambda.arch;
+        }
+
+        if (state.cw) {
+            setServiceChecked("cw", state.cw.enabled !== false);
+            if (state.cw.ingestGb) document.getElementById("cw_ingest_gb").value = state.cw.ingestGb;
+            if (state.cw.storageGb) document.getElementById("cw_storage_gb").value = state.cw.storageGb;
+            if (state.cw.metrics) document.getElementById("cw_metrics").value = state.cw.metrics;
+        }
+
+        if (state.vpc) {
+            setServiceChecked("vpc", state.vpc.enabled !== false);
+            if (state.vpc.natCount) document.getElementById("vpc_nat_count").value = state.vpc.natCount;
+            if (state.vpc.natHours) document.getElementById("vpc_nat_hours").value = state.vpc.natHours;
+            if (state.vpc.natDataGb) document.getElementById("vpc_nat_data_gb").value = state.vpc.natDataGb;
+            if (state.vpc.publicIps) document.getElementById("vpc_public_ips").value = state.vpc.publicIps;
+        }
+    } catch (e) {
+        // Safe fallback
+    }
+}
 
 function formatCurrency(num) {
     if (isNaN(num)) return "0.00";

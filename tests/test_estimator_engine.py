@@ -388,3 +388,88 @@ def test_lambda_handler_estimate_cost_post_route():
     assert body["summary"]["calculation_type"] == "ESTIMATED_COST"
     assert body["summary"]["services_selected_count"] == 1
     assert "Access-Control-Allow-Origin" in response["headers"]
+
+
+# ==========================================
+# 10. Custom Pricing Override & Edge Case Tests
+# ==========================================
+
+def test_rds_custom_hourly_price_override():
+    """Verify custom hourly price override works for RDS database compute."""
+    config = {
+        "engine": "MySQL",
+        "instance_type": "db.t3.medium",
+        "instance_count": 2,
+        "monthly_hours": 730.0,
+        "storage_gb": 100.0,
+        "deployment_option": "Single-AZ",
+        "custom_hourly_price": 0.0500
+    }
+    res = calculate_rds_cost(config, region="ap-south-1")
+    # Compute: 0.0500 * 2 * 730 = 73.00
+    # Storage: 100 * 0.115 * 2 = 23.00
+    assert res["monthly_cost"] == 96.00
+    assert any("User-Specified Custom" in c["pricing_source"] for c in res["components"])
+
+
+def test_lambda_custom_compute_rate_override():
+    """Verify custom compute rate override works for Lambda execution."""
+    config = {
+        "request_count": 2000000,
+        "duration_ms": 200.0,
+        "memory_mb": 512,
+        "architecture": "x86_64",
+        "apply_free_tier": False,
+        "custom_compute_rate": 0.00002000
+    }
+    res = calculate_lambda_cost(config, region="ap-south-1")
+    # Total GB-s: 2,000,000 * 0.2s * 0.5 GB = 200,000 GB-s
+    # Compute: 200,000 * 0.000020 = 4.00
+    # Requests: 2M * $0.20/1M = 0.40
+    assert res["monthly_cost"] == 4.40
+    assert any("User-Specified Custom" in c["pricing_source"] for c in res["components"])
+
+
+def test_cloudwatch_custom_ingestion_rate():
+    """Verify custom ingestion rate override works for CloudWatch logs."""
+    config = {
+        "ingestion_gb": 20.0,
+        "storage_gb": 10.0,
+        "custom_metrics": 0,
+        "apply_free_tier": False,
+        "custom_ingestion_rate": 0.40
+    }
+    res = calculate_cloudwatch_cost(config, region="ap-south-1")
+    # Ingestion: 20 * 0.40 = 8.00
+    # Storage: 10 * 0.033 = 0.33
+    assert res["monthly_cost"] == 8.33
+
+
+def test_vpc_custom_nat_hourly_override():
+    """Verify custom hourly rate override works for VPC NAT Gateways."""
+    config = {
+        "nat_gateway_count": 2,
+        "nat_hours": 500.0,
+        "nat_data_gb": 0.0,
+        "public_ip_count": 0,
+        "custom_nat_hourly": 0.040
+    }
+    res = calculate_vpc_cost(config, region="ap-south-1")
+    # 2 * 500 * 0.040 = 40.00
+    assert res["monthly_cost"] == 40.00
+
+
+def test_invalid_negative_and_excessive_inputs_bounded():
+    """Verify invalid negative inputs or out-of-range hours are bounded safely."""
+    config = {
+        "instance_count": -5,   # Should be bounded to at least 1
+        "hours_per_day": 99.0,  # Should be capped at 24.0
+        "days_per_month": -10.0,# Should be bounded to 0.0
+        "ebs_gb": -50.0         # Should be bounded to 0.0
+    }
+    res = calculate_ec2_cost(config, region="ap-south-1")
+    assert res["configuration"]["instance_count"] >= 1
+    assert res["configuration"]["hours_per_day"] == 24.0
+    assert res["configuration"]["days_per_month"] == 0.0
+    assert res["monthly_cost"] == 0.0
+

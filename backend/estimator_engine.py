@@ -387,8 +387,15 @@ def calculate_rds_cost(config: Dict[str, Any], region: str = "ap-south-1") -> Di
     is_multi_az = (deployment_option == "Multi-AZ")
     backup_gb = max(0.0, float(config.get("backup_gb", 0.0)))
 
-    inst_info = pricing["instances"].get(instance_type, pricing["instances"]["db.t3.micro"])
-    base_hourly_price = inst_info["price_per_hr"]
+    custom_hourly_price = config.get("custom_hourly_price")
+    if custom_hourly_price is not None and float(custom_hourly_price) >= 0:
+        base_hourly_price = float(custom_hourly_price)
+        price_source = "User-Specified Custom Database Hourly Price"
+    else:
+        inst_info = pricing["instances"].get(instance_type, pricing["instances"]["db.t3.micro"])
+        base_hourly_price = inst_info["price_per_hr"]
+        price_source = f"{pricing['source']} ({pricing['verified_date']})"
+
     multiplier = pricing["multi_az_multiplier"] if is_multi_az else 1.0
     effective_hourly_price = base_hourly_price * multiplier
 
@@ -412,7 +419,7 @@ def calculate_rds_cost(config: Dict[str, Any], region: str = "ap-south-1") -> Di
                 "unit_price": f"${effective_hourly_price:.4f}/hr",
                 "formula": f"(${base_hourly_price:.4f} × {multiplier:.1f}x) × {instance_count} × {monthly_hours:.1f} hrs",
                 "subtotal": round(compute_cost, 2),
-                "pricing_source": f"{pricing['source']} ({pricing['verified_date']})"
+                "pricing_source": price_source
             },
             {
                 "name": f"RDS Allocated Storage (gp3, {deployment_option})",
@@ -470,10 +477,16 @@ def calculate_lambda_cost(config: Dict[str, Any], region: str = "ap-south-1") ->
     memory_gb = memory_mb / 1024.0
     total_gb_seconds = request_count * duration_sec * memory_gb
 
+    custom_compute_rate = config.get("custom_compute_rate")
+    if custom_compute_rate is not None and float(custom_compute_rate) >= 0:
+        rate_per_gb_s = float(custom_compute_rate)
+        lambda_source = "User-Specified Custom Compute Price"
+    else:
+        rate_per_gb_s = pricing["compute_per_gb_second_arm"] if architecture == "arm64" else pricing["compute_per_gb_second_x86"]
+        lambda_source = f"{pricing['source']} ({pricing['verified_date']})"
+
     free_tier_gb_s = pricing["free_tier_gb_seconds"] if apply_free_tier else 0
     billed_gb_seconds = max(0.0, total_gb_seconds - free_tier_gb_s)
-
-    rate_per_gb_s = pricing["compute_per_gb_second_arm"] if architecture == "arm64" else pricing["compute_per_gb_second_x86"]
     compute_cost = billed_gb_seconds * rate_per_gb_s
 
     free_tier_req = pricing["free_tier_requests"] if apply_free_tier else 0
@@ -495,7 +508,7 @@ def calculate_lambda_cost(config: Dict[str, Any], region: str = "ap-south-1") ->
                 "unit_price": f"${rate_per_gb_s:.8f}/GB-s",
                 "formula": f"({request_count:,} req × {duration_sec:.3f}s × {memory_gb:.2f} GB - {free_tier_gb_s:,} free) × ${rate_per_gb_s:.8f}",
                 "subtotal": round(compute_cost, 2),
-                "pricing_source": f"{pricing['source']} ({pricing['verified_date']})"
+                "pricing_source": lambda_source
             },
             {
                 "name": "Lambda Invocation Requests",
@@ -535,8 +548,16 @@ def calculate_cloudwatch_cost(config: Dict[str, Any], region: str = "ap-south-1"
 
     free_ingestion = pricing["free_tier_log_gb"] if apply_free_tier else 0.0
     billed_ingestion = max(0.0, ingestion_gb - free_ingestion)
-    ingestion_cost = billed_ingestion * pricing["ingestion_per_gb"]
 
+    custom_ingestion_rate = config.get("custom_ingestion_rate")
+    if custom_ingestion_rate is not None and float(custom_ingestion_rate) >= 0:
+        ingestion_rate = float(custom_ingestion_rate)
+        cw_source = "User-Specified Custom Log Ingestion Price"
+    else:
+        ingestion_rate = pricing["ingestion_per_gb"]
+        cw_source = f"{pricing['source']} ({pricing['verified_date']})"
+
+    ingestion_cost = billed_ingestion * ingestion_rate
     storage_cost = storage_gb * pricing["storage_per_gb_month"]
 
     free_metrics = pricing["free_tier_metrics"] if apply_free_tier else 0
@@ -555,10 +576,10 @@ def calculate_cloudwatch_cost(config: Dict[str, Any], region: str = "ap-south-1"
                 "name": "CloudWatch Logs Ingestion",
                 "quantity": f"{ingestion_gb:.1f} GB ({billed_ingestion:.1f} GB billed)",
                 "unit": "GB",
-                "unit_price": f"${pricing['ingestion_per_gb']:.2f}/GB",
-                "formula": f"max(0, {ingestion_gb:.1f} - {free_ingestion:.1f}) × ${pricing['ingestion_per_gb']:.2f}",
+                "unit_price": f"${ingestion_rate:.2f}/GB",
+                "formula": f"max(0, {ingestion_gb:.1f} - {free_ingestion:.1f}) × ${ingestion_rate:.2f}",
                 "subtotal": round(ingestion_cost, 2),
-                "pricing_source": f"{pricing['source']} ({pricing['verified_date']})"
+                "pricing_source": cw_source
             },
             {
                 "name": "CloudWatch Logs Archive Storage",
@@ -604,7 +625,15 @@ def calculate_vpc_cost(config: Dict[str, Any], region: str = "ap-south-1") -> Di
     public_ips = max(0, int(config.get("public_ip_count", 1)))
     ip_hours = max(0.0, float(config.get("ip_hours", 730.0)))
 
-    nat_hourly_cost = nat_count * nat_hours * pricing["nat_gateway_per_hr"]
+    custom_nat_hourly = config.get("custom_nat_hourly")
+    if custom_nat_hourly is not None and float(custom_nat_hourly) >= 0:
+        nat_rate = float(custom_nat_hourly)
+        nat_source = "User-Specified Custom NAT Hourly Price"
+    else:
+        nat_rate = pricing["nat_gateway_per_hr"]
+        nat_source = f"{pricing['source']} ({pricing['verified_date']})"
+
+    nat_hourly_cost = nat_count * nat_hours * nat_rate
     nat_data_cost = nat_data_gb * pricing["nat_data_per_gb"]
     ipv4_cost = public_ips * ip_hours * pricing["public_ipv4_per_hr"]
 
@@ -620,10 +649,10 @@ def calculate_vpc_cost(config: Dict[str, Any], region: str = "ap-south-1") -> Di
                 "name": "NAT Gateway Uptime Hours",
                 "quantity": f"{nat_count} Gateway(s) @ {nat_hours:.1f} hrs",
                 "unit": "Gateway-Hours",
-                "unit_price": f"${pricing['nat_gateway_per_hr']:.3f}/hr",
-                "formula": f"{nat_count} × {nat_hours:.1f} hrs × ${pricing['nat_gateway_per_hr']:.3f}",
+                "unit_price": f"${nat_rate:.3f}/hr",
+                "formula": f"{nat_count} × {nat_hours:.1f} hrs × ${nat_rate:.3f}",
                 "subtotal": round(nat_hourly_cost, 2),
-                "pricing_source": f"{pricing['source']} ({pricing['verified_date']})"
+                "pricing_source": nat_source
             },
             {
                 "name": "NAT Gateway Data Processed",
