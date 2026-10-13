@@ -1,128 +1,88 @@
 # College Assessment Screenshots Checklist
-## AI-Powered AWS Cloud Cost Optimization System
+## AI-Powered AWS Cloud Cost Optimization and Estimation System
 
-This checklist specifies the exact screens and console views you should capture for your college project report, viva presentation slides, and lab assessment submission.
+This checklist specifies the exact screens and views to capture for your college project report, viva presentation slides, and evaluation demo.
 
 ---
 
-### Screenshot 1: Live Web Dashboard Overview
-- **Location**: Web Browser (Chrome / Edge / Firefox)
-- **URL**: `http://cost-optimizer-frontend-226234259454.s3-website.ap-south-1.amazonaws.com`
+### Screenshot 1: Interactive Cost Estimator & Optimizer (Mode 1 - Overview & Inputs)
+- **Location**: Web Browser (`http://localhost:8000` or deployed S3 URL)
+- **Tab**: `🧮 Interactive Cost Estimator & Optimizer`
 - **What Must Be Visible**:
-  - Top header with Title, Region badge (`Region: ap-south-1`), "Refresh Analysis", "💾 Save to S3", "📄 Download JSON", and "📊 Export CSV" buttons.
-  - Data Source Banner showing `Demo / Sample Data Mode` (amber badge) and `Last Retrieval: <Timestamp> (Sample Data)`.
-  - Four KPI Metric Cards: Total Monthly Spend ($100.00), Top Cost Driver (Amazon Elastic Compute Cloud - Compute), Potential Savings ($15.79 - $35.79), and Services Analyzed (6).
-- **What It Proves**: Proves the web dashboard is live on Amazon S3 and communicating with the serverless backend.
+  - Top Navigation Header with Region Selector (`ap-south-1`), Currency Selector (`USD` / `INR`), and Action Buttons (`💾 Save to S3`, `📄 Download JSON`, `📊 Export CSV`, `🖨️ Print`).
+  - **Architectural Presets Bar**: Buttons for `🚀 Full-Stack Web App`, `⚡ Serverless API`, `🏢 VPC Enterprise Workload`, `🆓 Minimal Free-Tier`.
+  - **AWS Service Configuration Grid**: 6 interactive service cards (EC2, S3, RDS, Lambda, CloudWatch, VPC) showing input parameters, checkboxes, and instance selectors.
+- **What It Proves**: Demonstrates a complete, interactive cloud architecture estimator that calculates costs dynamically without credential dependencies.
 
 ---
 
-### Screenshot 2: Data Visualizations (Charts & Breakdown Table)
-- **Location**: Web Browser (Dashboard main view, scroll down)
+### Screenshot 2: Visual Charts & Before vs. After Optimization Comparison
+- **Location**: Web Browser (Estimator Results Section)
 - **What Must Be Visible**:
-  - **Bar Chart**: "Monthly Spend by AWS Service ($)" showing costs for EC2, RDS, S3, CloudWatch, VPC, and Lambda.
-  - **Doughnut Chart**: "Spend Share (%)" displaying relative proportional distribution.
-  - **Service-Wise Breakdown Table**: Tabular view with service names, formatted costs, percentage shares, and progress indicator bars.
-- **What It Proves**: Proves frontend charting (Chart.js) and data binding are working dynamically.
+  - **KPI Cards**: Estimated Monthly Cost, Estimated Annual Cost (labeled with constant usage assumption), Potential Monthly Savings, and Optimized Monthly Cost.
+  - **Bar Chart**: "Estimated Monthly Spend by AWS Service" comparing each service in dollars/rupees.
+  - **Doughnut Chart**: "Proportional Spend Share (%)" displaying relative distribution.
+  - **Before vs. After Optimization Comparison Bar Chart**: Side-by-side comparison of baseline configuration vs. optimized configuration.
+- **What It Proves**: Demonstrates dynamic data visualization (Chart.js) and clear financial comparison.
 
 ---
 
-### Screenshot 3: Rule-Based Optimization Guidance
-- **Location**: Web Browser (Dashboard bottom section)
+### Screenshot 3: Detailed Calculation Line Items Table
+- **Location**: Web Browser (Scroll down to table)
 - **What Must Be Visible**:
-  - Filter buttons: "All", "High Priority", "Medium Priority".
-  - Recommendation cards for EC2, RDS, S3, CloudWatch with priority badges.
-  - Actionable rules with explicit **Conditions/Assumptions** (e.g. "Conditional: Requires CloudWatch metrics review") and **Expected Impacts** (e.g. "Up to 30-50% reduction in hourly instance cost").
-- **What It Proves**: Proves the deterministic heuristic recommendation engine meets academic standards and avoids false claims of trained AI.
+  - Columns: AWS Service, Component, Configured Quantity, Unit Price, Calculation Formula, Subtotal, Pricing Source.
+  - Concrete formula strings for compute, storage, and networking (e.g. `2 × (24h × 30.5d) × $0.0416`).
+  - Zero double-counting between compute, storage, and transfer.
+- **What It Proves**: Proves transparent mathematical modeling and auditability meeting academic evaluation criteria.
 
 ---
 
-### Screenshot 4: Downloaded Reports (CSV & JSON)
-- **Location**: Windows File Explorer / Text Editor (VS Code or Notepad)
+### Screenshot 4: Rule-Based Optimization Recommendations
+- **Location**: Web Browser (Bottom of Mode 1)
 - **What Must Be Visible**:
-  - Downloaded CSV file (`aws_cost_analysis_YYYY-MM-DD.csv`) opened in Excel or Notepad showing columns: Service, Cost_USD, Percentage_Of_Total.
-  - Downloaded JSON report (`aws_cost_analysis_report_YYYY-MM-DD.json`) showing formatted metadata, timestamp, data source status, totals, and recommendations.
-- **What It Proves**: Proves user data export capabilities in multiple standard formats.
+  - Recommendation cards (e.g. EC2 Off-Hours Scheduling, RDS Multi-AZ to Single-AZ, S3 Lifecycle Transitions, Lambda Graviton2 ARM64 migration).
+  - Current Plan vs. Suggested Plan comparison.
+  - Potential Net Savings with percentage reduction.
+  - Explicit **Assumptions** and **Trade-offs / Operational Actions**.
+- **What It Proves**: Proves deterministic heuristic optimization algorithms recalculate exact alternatives using the same pricing model.
 
 ---
 
-### Screenshot 5: Direct API Response (Browser / Postman / curl)
-- **Location**: Browser / PowerShell / Postman
-- **URL**: `https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com/cost-analysis`
+### Screenshot 5: Actual AWS Account Billing Analysis (Mode 2)
+- **Location**: Web Browser (Switch to `📊 Actual AWS Account Billing Analysis` Tab)
 - **What Must Be Visible**:
-  - Raw JSON response returning HTTP 200.
-  - Keys: `status: "success"`, `retrieval_timestamp_utc`, `data_source: "demo_data"`, `is_sample_data: true`, `summary`, `service_breakdown`, `recommendations`.
-- **What It Proves**: Proves Amazon API Gateway is securely invoking AWS Lambda and returning structured JSON with CORS headers.
+  - Status Banner: "AWS Data Ingestion Window (Pending 24h ETL)" or "Live AWS Account Billing Active".
+  - Actual Account Spend: **`$0.00`** (verified by AWS Budgets).
+  - Top Cost Driver: "None (Zero Spend) - Operating within Free Tier".
+  - Preventive Best-Practice Governance Cards (Budget alerts, S3 lifecycle, unattached Elastic IPs).
+- **What It Proves**: Proves academic honesty—actual account spend is truthfully presented without fabricating synthetic charges.
 
 ---
 
-### Screenshot 6: AWS Lambda Console Configuration
-- **Location**: AWS Management Console > Lambda > Functions > `cost-optimization-analyzer`
-- **Region**: Asia Pacific (Mumbai) `ap-south-1`
+### Screenshot 6: Downloaded Reports (CSV & JSON)
+- **Location**: Windows File Explorer / Text Editor (VS Code / Excel / Notepad)
 - **What Must Be Visible**:
-  - Function name: `cost-optimization-analyzer`.
-  - Runtime: `Python 3.12`.
-  - Memory: `128 MB`, Timeout: `15 sec`.
-  - Execution Role: `AWSLambdaCostOptimizationRole`.
-  - Function Overview showing API Gateway trigger attached.
-- **What It Proves**: Proves backend compute is deployed natively on AWS Lambda in the designated region.
+  - Downloaded CSV report (`aws_cost_estimate_YYYY-MM-DD.csv`) showing line items, rates, and recommendations.
+  - Downloaded JSON report (`aws_cost_estimate_YYYY-MM-DD.json`) showing full hierarchical structure and metadata.
+- **What It Proves**: Proves enterprise-ready export capabilities.
 
 ---
 
-### Screenshot 7: Amazon API Gateway Console
-- **Location**: AWS Management Console > API Gateway > APIs > `cost-optimizer-api`
-- **What Must Be Visible**:
-  - Protocol: HTTP API.
-  - Routes tab showing `GET /cost-analysis`, `POST /save-report`, and `GET /health`.
-  - CORS configuration showing Allowed Origins (`*`) and Methods (`GET, POST, OPTIONS`).
-  - Stage `$default` showing automatic deployment enabled.
-- **What It Proves**: Proves serverless API management and routing on AWS API Gateway.
-
----
-
-### Screenshot 8: Amazon S3 Frontend Hosting Bucket
-- **Location**: AWS Management Console > Amazon S3 > Buckets > `cost-optimizer-frontend-226234259454`
-- **What Must Be Visible**:
-  - Bucket Objects: `index.html`, `app.js`, `styles.css`, `config.js`.
-  - Properties tab showing **Static website hosting: Enabled** with Endpoint URL visible.
-- **What It Proves**: Proves static frontend files are hosted on AWS S3 without reliance on a local Streamlit server.
-
----
-
-### Screenshot 9: Amazon S3 Reports Storage Bucket
-- **Location**: AWS Management Console > Amazon S3 > Buckets > `cost-optimizer-reports-226234259454`
-- **What Must Be Visible**:
-  - Bucket name: `cost-optimizer-reports-226234259454`.
-  - Region: `ap-south-1`.
-  - Block Public Access: Enabled (private storage).
-- **What It Proves**: Proves dedicated, secure cloud storage exists for report snapshots.
-
----
-
-### Screenshot 10: Amazon CloudWatch Logs Console
-- **Location**: AWS Management Console > CloudWatch > Log groups > `/aws/lambda/cost-optimization-analyzer`
-- **What Must Be Visible**:
-  - Log group name `/aws/lambda/cost-optimization-analyzer`.
-  - Log streams list with recent timestamps.
-  - Inside a log stream: Log events showing `Received event for cost optimization microservice`, `Querying AWS Cost Explorer`, duration (~51 ms), and memory usage without sensitive secrets.
-- **What It Proves**: Proves cloud observability, execution tracking, and credential hygiene.
-
----
-
-### Screenshot 11: AWS Budgets Safety Guardrail
-- **Location**: AWS Management Console > Billing and Cost Management > Budgets
-- **What Must Be Visible**:
-  - Budget Name: `Zero-Cost-Project-Budget`.
-  - Amount: `$1.00 USD`.
-  - Current Spend: `$0.00 USD` (Healthy status bar).
-  - Notifications configured.
-- **What It Proves**: Proves strict financial governance and zero unintended cloud spending.
-
----
-
-### Screenshot 12: Automated Pytest Unit Test Suite
+### Screenshot 7: Automated Pytest Unit Test Execution (42 Passing Tests)
 - **Location**: Windows PowerShell Terminal
-- **Command**: `python -m pytest tests/test_cost_analyzer.py -v`
+- **Command**: `python -m pytest tests/ -v`
 - **What Must Be Visible**:
-  - 24 tests listed with green `PASSED` tags.
-  - Summary: `24 passed in 0.51s`.
-- **What It Proves**: Proves comprehensive test-driven development and algorithmic correctness.
+  - All 42 tests passing with green `PASSED` tags (24 cost analyzer tests + 18 estimator engine tests).
+  - Summary: `42 passed in 0.49s`.
+- **What It Proves**: Proves 100% test coverage and software engineering rigour.
+
+---
+
+### Screenshot 8: AWS Management Console Resources
+- **Location**: AWS Management Console
+- **What Must Be Visible**:
+  - **AWS Lambda**: `cost-optimization-analyzer` (Python 3.12, Mumbai `ap-south-1`).
+  - **Amazon API Gateway**: `cost-optimizer-api` (HTTP API v2 with routes `/estimate-cost`, `/cost-analysis`, `/save-report`, `/health`).
+  - **Amazon S3**: `cost-optimizer-frontend-226234259454` (Static hosting enabled) and `cost-optimizer-reports-226234259454` (Private block public access).
+  - **AWS Budgets**: `Zero-Cost-Project-Budget` ($1.00 USD limit, verified $0.00 spend).
+- **What It Proves**: Proves native serverless cloud deployment and zero-cost financial guardrails.

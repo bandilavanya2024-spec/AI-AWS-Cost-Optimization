@@ -15,8 +15,10 @@ from typing import Any, Dict
 # Support relative import when running as package, or local import in Lambda root
 try:
     from backend.cost_analyzer import analyze_costs, fetch_aws_cost_data, save_report_to_s3
+    from backend.estimator_engine import estimate_total_costs, export_estimate_to_json, export_estimate_to_csv
 except ImportError:
     from cost_analyzer import analyze_costs, fetch_aws_cost_data, save_report_to_s3
+    from estimator_engine import estimate_total_costs, export_estimate_to_json, export_estimate_to_csv
 
 logger = logging.getLogger("lambda_handler")
 logger.setLevel(logging.INFO)
@@ -93,6 +95,37 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 "status": "error",
                 "message": "Failed to persist report snapshot to S3.",
                 "error_details": str(s3_exc)
+            })
+
+    # Route: Interactive Cost Estimation
+    if raw_path in ("/estimate-cost", "/api/estimate-cost", "/estimate") or (http_method.upper() == "POST" and "estimate" in raw_path.lower()):
+        logger.info("Processing interactive cost estimation request.")
+        try:
+            body_data = {}
+            if event.get("body"):
+                try:
+                    body_data = json.loads(event["body"])
+                except Exception:
+                    body_data = {}
+
+            service_configs = body_data.get("service_configs", body_data)
+            region = body_data.get("region", "ap-south-1")
+            currency = body_data.get("currency", "USD")
+            inr_rate = float(body_data.get("inr_rate", 83.50))
+
+            estimate_result = estimate_total_costs(
+                service_configs=service_configs,
+                region=region,
+                currency=currency,
+                inr_rate=inr_rate
+            )
+            return build_response(200, estimate_result)
+        except Exception as est_exc:
+            logger.error(f"Error calculating cost estimate: {str(est_exc)}")
+            return build_response(500, {
+                "status": "error",
+                "message": "Failed to calculate cost estimate.",
+                "error_details": str(est_exc)
             })
 
     # Default Route: Cost Analysis & Optimization Recommendations

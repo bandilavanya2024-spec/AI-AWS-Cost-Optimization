@@ -178,10 +178,10 @@ def test_lambda_recommendation_rules():
 
 @patch("boto3.client")
 def test_data_unavailable_exception_fallback(mock_boto_client):
-    """When Cost Explorer returns DataUnavailableException, must fallback to demo data cleanly."""
+    """When Cost Explorer returns DataUnavailableException, report pending ingestion and zero charges."""
     mock_ce = MagicMock()
     mock_boto_client.return_value = mock_ce
-    
+
     error_response = {
         "Error": {
             "Code": "DataUnavailableException",
@@ -192,17 +192,17 @@ def test_data_unavailable_exception_fallback(mock_boto_client):
 
     costs, data_source, msg = fetch_aws_cost_data(bypass_cache=True)
 
-    assert data_source == "demo_data"
+    assert data_source == "aws_data_pending_ingestion"
     assert "24 hours" in msg
-    assert costs == SAMPLE_COST_DATA
+    assert costs == {}
 
 
 @patch("boto3.client")
 def test_access_denied_exception_fallback(mock_boto_client):
-    """When Cost Explorer returns AccessDeniedException, must fallback with helpful IAM guidance."""
+    """When Cost Explorer returns AccessDeniedException, report permission required without fake data."""
     mock_ce = MagicMock()
     mock_boto_client.return_value = mock_ce
-    
+
     error_response = {
         "Error": {
             "Code": "AccessDeniedException",
@@ -213,17 +213,17 @@ def test_access_denied_exception_fallback(mock_boto_client):
 
     costs, data_source, msg = fetch_aws_cost_data(bypass_cache=True)
 
-    assert data_source == "demo_data"
+    assert data_source == "aws_permission_required"
     assert "ce:GetCostAndUsage" in msg
-    assert costs == SAMPLE_COST_DATA
+    assert costs == {}
 
 
 @patch("boto3.client")
 def test_empty_results_fallback(mock_boto_client):
-    """When Cost Explorer returns 0 charges (empty groups), gracefully fallback to demo data."""
+    """When Cost Explorer returns 0 charges (empty groups), report honest $0.00 live spend."""
     mock_ce = MagicMock()
     mock_boto_client.return_value = mock_ce
-    
+
     mock_ce.get_cost_and_usage.return_value = {
         "ResultsByTime": [
             {
@@ -235,8 +235,9 @@ def test_empty_results_fallback(mock_boto_client):
 
     costs, data_source, msg = fetch_aws_cost_data(bypass_cache=True)
 
-    assert data_source == "demo_data"
-    assert "no billing charges have accumulated" in msg
+    assert data_source == "live_aws_data"
+    assert "No billed charges have accumulated" in msg
+    assert costs == {}
 
 
 @patch("boto3.client")

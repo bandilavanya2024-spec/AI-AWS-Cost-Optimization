@@ -1,8 +1,8 @@
-# System Architecture: AI-Powered AWS Cloud Cost Optimization System
+# System Architecture: AI-Powered AWS Cloud Cost Optimization and Estimation System
 
 ## 1. System Overview
 
-The **AI-Powered AWS Cloud Cost Optimization System** is a serverless, cloud-native FinOps platform designed to analyze AWS cloud expenditures, identify primary cost drivers, formulate actionable rule-based cost reduction recommendations, and archive report snapshots on demand.
+The **AI-Powered AWS Cloud Cost Optimization and Estimation System** is a serverless, cloud-native FinOps platform designed to provide forward-looking architectural cost estimation, deterministic rule-based optimization recalculations, and backward-looking live account billing telemetry on Amazon Web Services (AWS) in the Mumbai region (`ap-south-1`).
 
 ---
 
@@ -11,7 +11,7 @@ The **AI-Powered AWS Cloud Cost Optimization System** is a serverless, cloud-nat
 | Layer | Service | Identifier / ARN | Live Status |
 | :--- | :--- | :--- | :---: |
 | **Frontend UI** | Amazon S3 (Website Hosting) | `cost-optimizer-frontend-226234259454`<br>URL: [http://cost-optimizer-frontend-226234259454.s3-website.ap-south-1.amazonaws.com](http://cost-optimizer-frontend-226234259454.s3-website.ap-south-1.amazonaws.com) | **VERIFIED** |
-| **API Gateway** | Amazon API Gateway (HTTP v2) | `qngtx7iz7a`<br>URL: [https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com](https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com)<br>Routes: `GET /cost-analysis`, `POST /save-report`, `GET /health` | **VERIFIED** |
+| **API Gateway** | Amazon API Gateway (HTTP v2) | `qngtx7iz7a`<br>URL: [https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com](https://qngtx7iz7a.execute-api.ap-south-1.amazonaws.com)<br>Routes: `GET /cost-analysis`, `POST /estimate-cost`, `POST /save-report`, `GET /health` | **VERIFIED** |
 | **Backend Compute** | AWS Lambda (Python 3.12) | `arn:aws:lambda:ap-south-1:226234259454:function:cost-optimization-analyzer` | **VERIFIED** |
 | **Execution Role** | AWS IAM | `arn:aws:iam::226234259454:role/AWSLambdaCostOptimizationRole` | **VERIFIED** |
 | **Reports Storage** | Amazon S3 | `arn:aws:s3:::cost-optimizer-reports-226234259454` | **VERIFIED** |
@@ -34,13 +34,14 @@ flowchart TD
     end
 
     subgraph APILayer["API Gateway (HTTP v2)"]
-        APIGW["Amazon API Gateway\nEndpoint: qngtx7iz7a.execute-api.ap-south-1\nRoutes: GET /cost-analysis, POST /save-report, GET /health"]
+        APIGW["Amazon API Gateway\nEndpoint: qngtx7iz7a.execute-api.ap-south-1\nRoutes: POST /estimate-cost, GET /cost-analysis, POST /save-report, GET /health"]
     end
 
-    subgraph ComputeLayer["Serverless Compute & Heuristic Engine"]
+    subgraph ComputeLayer["Serverless Compute & Estimation Engine"]
         Lambda["AWS Lambda Function (Python 3.12)\nMemory: 128 MB | Timeout: 15s"]
+        Estimator["Estimator & Pricing Engine\n(backend.estimator_engine)\nVerified AWS On-Demand Price Registry"]
+        CostAnalyzer["Billing Telemetry Analyzer\n(backend.cost_analyzer)"]
         Cache["In-Memory Cache (TTL: 15 Minutes)\nPrevents Repeated $0.01 API Calls"]
-        RuleEngine["Deterministic Rule Engine\n(EC2, S3, RDS, CloudWatch, Lambda, VPC)"]
     end
 
     subgraph AWSDataSources["AWS Cloud Billing & Telemetry"]
@@ -50,43 +51,30 @@ flowchart TD
     end
 
     Browser -->|1. Load Static UI| S3Web
-    Browser -->|2. GET /cost-analysis| APIGW
-    Browser -.->|2a. POST /save-report (User Clicked)| APIGW
-    APIGW -->|3. Invoke Function| Lambda
-    Lambda --> Cache
-    Lambda -->|4. Query Real Spend| CE
-    Lambda -.->|4a. Fallback if DataUnavailable| RuleEngine
-    Lambda -->|5. Apply Heuristics| RuleEngine
-    Lambda -.->|6. Store Snapshot on Demand| S3Reports
-    Lambda -->|7. Audit Logs (Sanitized)| CW
-    Lambda -->|8. Structured JSON Response + CORS| APIGW
-    APIGW -->|9. Render Metrics & Recommendations| Browser
+    Browser -->|Mode 1: POST /estimate-cost| APIGW
+    Browser -->|Mode 2: GET /cost-analysis| APIGW
+    Browser -.->|User Clicked: POST /save-report| APIGW
+    APIGW -->|Invoke Function| Lambda
+    Lambda --> Estimator
+    Lambda --> CostAnalyzer
+    CostAnalyzer --> Cache
+    Cache -->|Query Real Spend| CE
+    Lambda -.->|Store Snapshot on Demand| S3Reports
+    Lambda --> CW
 ```
 
 ---
 
-## 4. Academic Framing: Heuristic Rules vs. Machine Learning
+## 4. Architectural Decision Records (ADR)
 
-### Why Deterministic Heuristics?
-In real-world cloud financial management (FinOps), recommendations must be:
-1. **Explainable and Auditable**: Cloud engineers need to understand exactly *why* an action is recommended.
-2. **Deterministic**: Cloud pricing follows strict mathematical formulas published by AWS. Applying rule-based heuristics ensures predictable recommendations.
-3. **Low Cost**: Running generative AI or large neural networks for basic cost breakdown creates unnecessary compute bills ($10–$50/month), contradicting the goal of cost optimization.
+### ADR-01: Decoupling Primary Estimator from AWS Cost Explorer
+- **Context**: AWS Cost Explorer has an intrinsic 24-hour initial ingestion delay, throwing `DataUnavailableException` for newly created accounts.
+- **Decision**: Implement an interactive, client/backend parameter-driven estimator that uses verified AWS public pricing models. Mode 1 works reliably offline or online without AWS credentials. Mode 2 inspects genuine account telemetry without fabricating synthetic numbers.
 
-### Clarification of Capabilities:
-- The system uses **transparent, rule-based algorithmic heuristics**.
-- It does **not** claim to be a trained black-box neural network or deep learning model.
-- Because instance-level CloudWatch metrics (e.g., per-minute CPU/RAM utilization) require specialized CloudWatch agent deployment, rightsizing recommendations are **conditional heuristics** based on billing shares and published AWS best practices, clearly labeled with their underlying assumptions.
+### ADR-02: Deterministic Rule-Based Optimization vs Deep Learning
+- **Context**: Deciding whether to train a machine learning model or use deterministic heuristics.
+- **Decision**: Use deterministic rule-based algorithms. Cloud pricing follows exact mathematical rates published by AWS. Deep learning models introduce hallucinations, high GPU training/hosting costs ($20–$100/mo), and lack explainability. The rule-based engine recalculates exact alternatives using the same pricing formulas with zero operational cost.
 
----
-
-## 5. Security & Least Privilege
-
-1. **Zero Hardcoded Credentials**:
-   - The application codebase contains zero API keys or secrets.
-   - All cloud communications use AWS IAM execution roles and service principals.
-2. **Sensitive Data Protection**:
-   - CloudWatch logs only record request timestamps, counts, and service classifications.
-   - Account numbers and secret keys are never emitted in API responses or logs.
-3. **CORS Governance**:
-   - Standard HTTP CORS headers allow cross-origin requests from the hosted S3 dashboard while restricting methods to `GET, POST, OPTIONS`.
+### ADR-03: Private Reports S3 Bucket with Least-Privilege IAM
+- **Context**: Storing generated JSON cost estimate snapshots securely.
+- **Decision**: The reports bucket `cost-optimizer-reports-226234259454` has **S3 Block Public Access 100% enabled**. Access is restricted strictly to Lambda via IAM policy granting `s3:PutObject` on `arn:aws:s3:::cost-optimizer-reports-226234259454/reports/*`.
