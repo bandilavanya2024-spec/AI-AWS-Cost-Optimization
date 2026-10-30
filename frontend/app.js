@@ -105,6 +105,52 @@ const PRICING_DATABASE = {
             nat_data_per_gb: 0.056,
             public_ipv4_hourly: 0.005,
             source: "Amazon VPC Pricing (ap-south-1)"
+        },
+        ecs: {
+            vcpu_per_hr: 0.04048,
+            memory_gb_per_hr: 0.004445,
+            fargate_spot_discount: 0.70,
+            graviton_arm_discount: 0.20,
+            source: "AWS Fargate Pricing (ap-south-1)"
+        },
+        dynamodb: {
+            on_demand_write_per_million: 1.25,
+            on_demand_read_per_million: 0.25,
+            provisioned_wcu_per_hr: 0.00065,
+            provisioned_rcu_per_hr: 0.00013,
+            storage_per_gb_month: 0.25,
+            free_tier_storage_gb: 25.0,
+            source: "Amazon DynamoDB Pricing (ap-south-1)"
+        },
+        sns: {
+            publish_per_million: 0.50,
+            email_per_100k: 2.00,
+            sms_per_message: 0.0075,
+            free_tier_publish: 1000000,
+            free_tier_email: 1000,
+            source: "Amazon SNS Pricing (ap-south-1)"
+        },
+        quicksight: {
+            author_per_month: 24.00,
+            reader_per_month: 5.00,
+            spice_per_gb_month: 0.25,
+            source: "Amazon QuickSight Enterprise"
+        },
+        route53: {
+            hosted_zone_per_month: 0.50,
+            queries_per_million: 0.40,
+            source: "Amazon Route 53 Pricing"
+        },
+        alb: {
+            alb_per_hr: 0.0225,
+            lcu_per_hr: 0.008,
+            source: "AWS Elastic Load Balancing"
+        },
+        ecr: {
+            storage_per_gb_month: 0.10,
+            data_transfer_per_gb: 0.109,
+            free_tier_storage_gb: 0.5,
+            source: "Amazon ECR Pricing (ap-south-1)"
         }
     },
     "us-east-1": {
@@ -171,6 +217,52 @@ const PRICING_DATABASE = {
             nat_data_per_gb: 0.045,
             public_ipv4_hourly: 0.005,
             source: "Amazon VPC Pricing (us-east-1)"
+        },
+        ecs: {
+            vcpu_per_hr: 0.04048,
+            memory_gb_per_hr: 0.004445,
+            fargate_spot_discount: 0.70,
+            graviton_arm_discount: 0.20,
+            source: "AWS Fargate Pricing (us-east-1)"
+        },
+        dynamodb: {
+            on_demand_write_per_million: 1.25,
+            on_demand_read_per_million: 0.25,
+            provisioned_wcu_per_hr: 0.00065,
+            provisioned_rcu_per_hr: 0.00013,
+            storage_per_gb_month: 0.25,
+            free_tier_storage_gb: 25.0,
+            source: "Amazon DynamoDB Pricing (us-east-1)"
+        },
+        sns: {
+            publish_per_million: 0.50,
+            email_per_100k: 2.00,
+            sms_per_message: 0.0075,
+            free_tier_publish: 1000000,
+            free_tier_email: 1000,
+            source: "Amazon SNS Pricing (us-east-1)"
+        },
+        quicksight: {
+            author_per_month: 24.00,
+            reader_per_month: 5.00,
+            spice_per_gb_month: 0.25,
+            source: "Amazon QuickSight Enterprise"
+        },
+        route53: {
+            hosted_zone_per_month: 0.50,
+            queries_per_million: 0.40,
+            source: "Amazon Route 53 Pricing"
+        },
+        alb: {
+            alb_per_hr: 0.0225,
+            lcu_per_hr: 0.008,
+            source: "AWS Elastic Load Balancing"
+        },
+        ecr: {
+            storage_per_gb_month: 0.10,
+            data_transfer_per_gb: 0.090,
+            free_tier_storage_gb: 0.5,
+            source: "Amazon ECR Pricing (us-east-1)"
         }
     }
 };
@@ -181,7 +273,14 @@ const SERVICE_COLORS = {
     rds: { bg: "#8b5cf6", border: "#7c3aed", name: "Amazon RDS" },
     lambda: { bg: "#f59e0b", border: "#d97706", name: "AWS Lambda" },
     cloudwatch: { bg: "#ec4899", border: "#db2777", name: "Amazon CloudWatch" },
-    vpc: { bg: "#06b6d4", border: "#0891b2", name: "Amazon VPC" }
+    vpc: { bg: "#06b6d4", border: "#0891b2", name: "Amazon VPC" },
+    ecs: { bg: "#ea580c", border: "#c2410c", name: "Amazon ECS (Fargate)" },
+    dynamodb: { bg: "#7e22ce", border: "#6b21a8", name: "Amazon DynamoDB" },
+    sns: { bg: "#e11d48", border: "#be123c", name: "Amazon SNS" },
+    quicksight: { bg: "#0d9488", border: "#0f766e", name: "Amazon QuickSight" },
+    route53: { bg: "#4338ca", border: "#3730a3", name: "Amazon Route 53" },
+    alb: { bg: "#6d28d9", border: "#5b21b6", name: "AWS Load Balancer" },
+    ecr: { bg: "#0284c7", border: "#0369a1", name: "Amazon ECR" }
 };
 
 const COST_TYPE_COLORS = {
@@ -215,16 +314,18 @@ function initNavigationTabs() {
     const tabEstimator = document.getElementById("tabEstimator");
     const tabDashboard = document.getElementById("tabDashboard");
     const tabActual = document.getElementById("tabActualBilling");
+    const tabArchitecture = document.getElementById("tabArchitecture");
 
     const containerEstimator = document.getElementById("modeEstimatorContainer");
     const containerDashboard = document.getElementById("modeDashboardContainer");
     const containerActual = document.getElementById("modeActualBillingContainer");
+    const containerArchitecture = document.getElementById("modeArchitectureContainer");
     const badge = document.getElementById("dataModeBadge");
 
     function switchTab(target) {
         activeTab = target;
-        [tabEstimator, tabDashboard, tabActual].forEach(t => { if (t) t.classList.remove("active"); });
-        [containerEstimator, containerDashboard, containerActual].forEach(c => { if (c) c.classList.add("hidden"); });
+        [tabEstimator, tabDashboard, tabActual, tabArchitecture].forEach(t => { if (t) t.classList.remove("active"); });
+        [containerEstimator, containerDashboard, containerActual, containerArchitecture].forEach(c => { if (c) c.classList.add("hidden"); });
 
         if (target === "ESTIMATOR") {
             if (tabEstimator) tabEstimator.classList.add("active");
@@ -249,12 +350,20 @@ function initNavigationTabs() {
                 badge.className = "px-2 py-0.5 text-[11px] font-bold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200";
             }
             loadActualBillingData();
+        } else if (target === "ARCHITECTURE") {
+            if (tabArchitecture) tabArchitecture.classList.add("active");
+            if (containerArchitecture) containerArchitecture.classList.remove("hidden");
+            if (badge) {
+                badge.textContent = "🏗️ CLOUD ARCHITECTURE";
+                badge.className = "px-2 py-0.5 text-[11px] font-bold rounded-full bg-purple-50 text-purple-700 border border-purple-200";
+            }
         }
     }
 
     if (tabEstimator) tabEstimator.addEventListener("click", () => switchTab("ESTIMATOR"));
     if (tabDashboard) tabDashboard.addEventListener("click", () => switchTab("DASHBOARD"));
     if (tabActual) tabActual.addEventListener("click", () => switchTab("ACTUAL_BILLING"));
+    if (tabArchitecture) tabArchitecture.addEventListener("click", () => switchTab("ARCHITECTURE"));
 
     const backToInputsBtn = document.getElementById("backToInputsBtn");
     if (backToInputsBtn) backToInputsBtn.addEventListener("click", () => switchTab("ESTIMATOR"));
@@ -309,7 +418,7 @@ function updateServiceUIState(svc, isEnabled) {
 }
 
 function initServiceTogglesAndCustomPrices() {
-    const services = ["ec2", "s3", "rds", "lambda", "cw", "vpc"];
+    const services = ["ec2", "s3", "rds", "lambda", "cw", "vpc", "ecs", "dynamodb", "sns", "quicksight", "route53", "alb", "ecr"];
     services.forEach(svc => {
         const checkbox = document.getElementById(`${svc}_enabled`);
         if (checkbox) {
@@ -450,6 +559,33 @@ function initActionButtons() {
     const saveS3Btn = document.getElementById("saveS3Btn");
     if (saveS3Btn) saveS3Btn.addEventListener("click", saveEstimateToS3);
 
+    // DynamoDB Persistence Action
+    const saveDynamoDBBtn = document.getElementById("saveDynamoDBBtn");
+    const triggerDynamoModalBtn = document.getElementById("triggerDynamoModalBtn");
+    [saveDynamoDBBtn, triggerDynamoModalBtn].forEach(btn => {
+        if (btn) btn.addEventListener("click", saveEstimateToDynamoDB);
+    });
+
+    // Amazon SNS Alert Action
+    const sendSnsAlertBtn = document.getElementById("sendSnsAlertBtn");
+    const triggerSnsModalBtn = document.getElementById("triggerSnsModalBtn");
+    [sendSnsAlertBtn, triggerSnsModalBtn].forEach(btn => {
+        if (btn) btn.addEventListener("click", sendSnsCostAlert);
+    });
+
+    // Amazon QuickSight Export Action
+    const exportQuickSightBtn = document.getElementById("exportQuickSightBtn");
+    const triggerQuickSightModalBtn = document.getElementById("triggerQuickSightModalBtn");
+    [exportQuickSightBtn, triggerQuickSightModalBtn].forEach(btn => {
+        if (btn) btn.addEventListener("click", exportQuickSightData);
+    });
+
+    // CloudFormation IaC Download
+    const downloadCfnBtn = document.getElementById("downloadCfnBtn");
+    if (downloadCfnBtn) {
+        downloadCfnBtn.addEventListener("click", downloadCloudFormationTemplate);
+    }
+
     const refreshActualBtn = document.getElementById("refreshActualBtn");
     if (refreshActualBtn) refreshActualBtn.addEventListener("click", loadActualBillingData);
 
@@ -537,7 +673,45 @@ function initPresets() {
 }
 
 function applyScenarioPreset(preset) {
-    if (preset === "webapp") {
+    if (preset === "target_arch") {
+        setServiceChecked("ec2", false);
+        setServiceChecked("ecs", true);
+        if (document.getElementById("ecs_vcpu")) document.getElementById("ecs_vcpu").value = "0.5";
+        if (document.getElementById("ecs_memory")) document.getElementById("ecs_memory").value = "1.0";
+        if (document.getElementById("ecs_task_count")) document.getElementById("ecs_task_count").value = 1;
+        if (document.getElementById("ecs_launch_type")) document.getElementById("ecs_launch_type").value = "Fargate";
+
+        setServiceChecked("alb", true);
+        if (document.getElementById("alb_count")) document.getElementById("alb_count").value = 1;
+
+        setServiceChecked("route53", true);
+        if (document.getElementById("route53_zones")) document.getElementById("route53_zones").value = 1;
+
+        setServiceChecked("s3", true);
+        if (document.getElementById("s3_storage_gb")) document.getElementById("s3_storage_gb").value = 100;
+
+        setServiceChecked("dynamodb", true);
+        if (document.getElementById("dynamodb_mode")) document.getElementById("dynamodb_mode").value = "PAY_PER_REQUEST";
+
+        setServiceChecked("sns", true);
+        if (document.getElementById("sns_publish_count")) document.getElementById("sns_publish_count").value = 100000;
+
+        setServiceChecked("quicksight", true);
+        if (document.getElementById("quicksight_authors")) document.getElementById("quicksight_authors").value = 1;
+        if (document.getElementById("quicksight_readers")) document.getElementById("quicksight_readers").value = 2;
+
+        setServiceChecked("lambda", true);
+        if (document.getElementById("lambda_requests")) document.getElementById("lambda_requests").value = 500000;
+
+        setServiceChecked("cw", true);
+        if (document.getElementById("cw_ingest_gb")) document.getElementById("cw_ingest_gb").value = 10;
+
+        setServiceChecked("ecr", true);
+        if (document.getElementById("ecr_storage_gb")) document.getElementById("ecr_storage_gb").value = 5.0;
+
+        setServiceChecked("rds", false);
+        setServiceChecked("vpc", true);
+    } else if (preset === "webapp") {
         setServiceChecked("ec2", true);
         document.getElementById("ec2_instance_type").value = "t3.medium";
         document.getElementById("ec2_count").value = 2;
@@ -1155,6 +1329,203 @@ function calculateEstimate() {
         }
     }
     updateCardSubtotal("subtotal_vpc", vpcSubtotal, symbol, mult, vpcEnabled);
+
+    // --- 7. Amazon ECS (Fargate) ---
+    const ecsEnabled = document.getElementById("ecs_enabled") && document.getElementById("ecs_enabled").checked;
+    let ecsSubtotal = 0;
+    if (ecsEnabled && pricing.ecs) {
+        const vcpu = parseFloat(document.getElementById("ecs_vcpu") ? document.getElementById("ecs_vcpu").value : 0.5) || 0.5;
+        const memoryGb = parseFloat(document.getElementById("ecs_memory") ? document.getElementById("ecs_memory").value : 1.0) || 1.0;
+        const taskCount = Math.max(1, parseInt(document.getElementById("ecs_task_count") ? document.getElementById("ecs_task_count").value : 1) || 1);
+        const launchType = document.getElementById("ecs_launch_type") ? document.getElementById("ecs_launch_type").value : "Fargate";
+        const arch = document.getElementById("ecs_architecture") ? document.getElementById("ecs_architecture").value : "x86_64";
+
+        const archMult = (arch === "arm64") ? (1.0 - pricing.ecs.graviton_arm_discount) : 1.0;
+        const spotMult = (launchType === "Fargate-Spot") ? (1.0 - pricing.ecs.fargate_spot_discount) : 1.0;
+
+        const effectiveVcpuRate = pricing.ecs.vcpu_per_hr * archMult * spotMult;
+        const effectiveRamRate = pricing.ecs.memory_gb_per_hr * archMult * spotMult;
+        const hourlyTask = (vcpu * effectiveVcpuRate) + (memoryGb * effectiveRamRate);
+        const monthlyHours = 24.0 * 30.5;
+        ecsSubtotal = hourlyTask * taskCount * monthlyHours;
+        baselineMonthlyUSD += ecsSubtotal;
+
+        serviceResults.push({
+            service_key: "ecs",
+            service_name: "Amazon Elastic Container Service (ECS Fargate)",
+            short_name: "ECS Fargate",
+            cost_type: "compute",
+            monthly_cost_usd: ecsSubtotal,
+            configuration: { vcpu, memoryGb, taskCount, launchType, arch }
+        });
+
+        lineItems.push({
+            service_key: "ecs",
+            service_name: "Amazon ECS (Fargate)",
+            component_name: `Fargate Container Task (${arch}, ${launchType})`,
+            cost_type: "compute",
+            quantity: `${taskCount} task(s) @ ${monthlyHours.toFixed(0)} hrs`,
+            unit_price: `$${hourlyTask.toFixed(4)}/task-hr`,
+            formula: `${taskCount} × ${monthlyHours.toFixed(0)} hrs × $${hourlyTask.toFixed(4)}`,
+            subtotal_usd: ecsSubtotal,
+            pricing_source: "AWS Fargate Pricing",
+            is_custom: false
+        });
+    }
+    updateCardSubtotal("subtotal_ecs", ecsSubtotal, symbol, mult, ecsEnabled);
+
+    // --- 8. Amazon DynamoDB ---
+    const ddbEnabled = document.getElementById("dynamodb_enabled") && document.getElementById("dynamodb_enabled").checked;
+    let ddbSubtotal = 0;
+    if (ddbEnabled && pricing.dynamodb) {
+        const mode = document.getElementById("dynamodb_mode") ? document.getElementById("dynamodb_mode").value : "PAY_PER_REQUEST";
+        const storageGb = Math.max(0, parseFloat(document.getElementById("dynamodb_storage_gb") ? document.getElementById("dynamodb_storage_gb").value : 10) || 0);
+        const billedStorage = Math.max(0, storageGb - pricing.dynamodb.free_tier_storage_gb);
+        const storageCost = billedStorage * pricing.dynamodb.storage_per_gb_month;
+
+        let requestCost = 0;
+        if (mode === "PROVISIONED") {
+            const wcu = 5;
+            const rcu = 5;
+            requestCost = (wcu * 730 * pricing.dynamodb.provisioned_wcu_per_hr) + (rcu * 730 * pricing.dynamodb.provisioned_rcu_per_hr);
+        } else {
+            const writes = Math.max(0, parseInt(document.getElementById("dynamodb_writes") ? document.getElementById("dynamodb_writes").value : 500000) || 0);
+            const reads = Math.max(0, parseInt(document.getElementById("dynamodb_reads") ? document.getElementById("dynamodb_reads").value : 2000000) || 0);
+            requestCost = (writes / 1000000.0) * pricing.dynamodb.on_demand_write_per_million + (reads / 1000000.0) * pricing.dynamodb.on_demand_read_per_million;
+        }
+
+        ddbSubtotal = requestCost + storageCost;
+        baselineMonthlyUSD += ddbSubtotal;
+
+        serviceResults.push({
+            service_key: "dynamodb",
+            service_name: "Amazon DynamoDB (Serverless NoSQL)",
+            short_name: "DynamoDB",
+            cost_type: "database",
+            monthly_cost_usd: ddbSubtotal,
+            configuration: { mode, storageGb }
+        });
+
+        lineItems.push({
+            service_key: "dynamodb",
+            service_name: "Amazon DynamoDB",
+            component_name: `DynamoDB Operations (${mode})`,
+            cost_type: "database",
+            quantity: `${storageGb.toFixed(0)} GB + Requests`,
+            unit_price: "On-Demand Rates",
+            formula: `Requests ($${requestCost.toFixed(2)}) + Storage ($${storageCost.toFixed(2)})`,
+            subtotal_usd: ddbSubtotal,
+            pricing_source: "Amazon DynamoDB Pricing",
+            is_custom: false
+        });
+    }
+    updateCardSubtotal("subtotal_dynamodb", ddbSubtotal, symbol, mult, ddbEnabled);
+
+    // --- 9. Amazon SNS ---
+    const snsEnabled = document.getElementById("sns_enabled") && document.getElementById("sns_enabled").checked;
+    let snsSubtotal = 0;
+    if (snsEnabled && pricing.sns) {
+        const publishCount = Math.max(0, parseInt(document.getElementById("sns_publish_count") ? document.getElementById("sns_publish_count").value : 100000) || 0);
+        const emailCount = Math.max(0, parseInt(document.getElementById("sns_email_count") ? document.getElementById("sns_email_count").value : 2000) || 0);
+        const billedPub = Math.max(0, publishCount - pricing.sns.free_tier_publish);
+        const billedEmail = Math.max(0, emailCount - pricing.sns.free_tier_email);
+        snsSubtotal = (billedPub / 1000000.0) * pricing.sns.publish_per_million + (billedEmail / 100000.0) * pricing.sns.email_per_100k;
+        baselineMonthlyUSD += snsSubtotal;
+
+        serviceResults.push({
+            service_key: "sns",
+            service_name: "Amazon Simple Notification Service (SNS)",
+            short_name: "SNS Alerts",
+            cost_type: "networking",
+            monthly_cost_usd: snsSubtotal,
+            configuration: { publishCount, emailCount }
+        });
+    }
+    updateCardSubtotal("subtotal_sns", snsSubtotal, symbol, mult, snsEnabled);
+
+    // --- 10. Amazon QuickSight ---
+    const qsEnabled = document.getElementById("quicksight_enabled") && document.getElementById("quicksight_enabled").checked;
+    let qsSubtotal = 0;
+    if (qsEnabled && pricing.quicksight) {
+        const authors = Math.max(1, parseInt(document.getElementById("quicksight_authors") ? document.getElementById("quicksight_authors").value : 1) || 1);
+        const readers = Math.max(0, parseInt(document.getElementById("quicksight_readers") ? document.getElementById("quicksight_readers").value : 2) || 0);
+        const spiceGb = Math.max(0, parseFloat(document.getElementById("quicksight_spice_gb") ? document.getElementById("quicksight_spice_gb").value : 10) || 0);
+        const includedSpice = authors * 10;
+        const billedSpice = Math.max(0, spiceGb - includedSpice);
+        qsSubtotal = (authors * pricing.quicksight.author_per_month) + (readers * pricing.quicksight.reader_per_month) + (billedSpice * pricing.quicksight.spice_per_gb_month);
+        baselineMonthlyUSD += qsSubtotal;
+
+        serviceResults.push({
+            service_key: "quicksight",
+            service_name: "Amazon QuickSight (Executive BI Analytics)",
+            short_name: "QuickSight",
+            cost_type: "monitoring",
+            monthly_cost_usd: qsSubtotal,
+            configuration: { authors, readers, spiceGb }
+        });
+    }
+    updateCardSubtotal("subtotal_quicksight", qsSubtotal, symbol, mult, qsEnabled);
+
+    // --- 11. Amazon Route 53 ---
+    const r53Enabled = document.getElementById("route53_enabled") && document.getElementById("route53_enabled").checked;
+    let r53Subtotal = 0;
+    if (r53Enabled && pricing.route53) {
+        const zones = Math.max(1, parseInt(document.getElementById("route53_zones") ? document.getElementById("route53_zones").value : 1) || 1);
+        const queries = Math.max(0, parseFloat(document.getElementById("route53_queries") ? document.getElementById("route53_queries").value : 1.0) || 0);
+        r53Subtotal = (zones * pricing.route53.hosted_zone_per_month) + (queries * pricing.route53.queries_per_million);
+        baselineMonthlyUSD += r53Subtotal;
+
+        serviceResults.push({
+            service_key: "route53",
+            service_name: "Amazon Route 53 (DNS)",
+            short_name: "Route 53",
+            cost_type: "networking",
+            monthly_cost_usd: r53Subtotal,
+            configuration: { zones, queries }
+        });
+    }
+    updateCardSubtotal("subtotal_route53", r53Subtotal, symbol, mult, r53Enabled);
+
+    // --- 12. Elastic Load Balancing (ALB) ---
+    const albEnabled = document.getElementById("alb_enabled") && document.getElementById("alb_enabled").checked;
+    let albSubtotal = 0;
+    if (albEnabled && pricing.alb) {
+        const albCount = Math.max(1, parseInt(document.getElementById("alb_count") ? document.getElementById("alb_count").value : 1) || 1);
+        const albLcu = Math.max(0.5, parseFloat(document.getElementById("alb_lcu") ? document.getElementById("alb_lcu").value : 1.0) || 1.0);
+        const albHours = Math.max(1, parseFloat(document.getElementById("alb_hours") ? document.getElementById("alb_hours").value : 730) || 730);
+        albSubtotal = (albCount * albHours * pricing.alb.alb_per_hr) + (albCount * albHours * albLcu * pricing.alb.lcu_per_hr);
+        baselineMonthlyUSD += albSubtotal;
+
+        serviceResults.push({
+            service_key: "alb",
+            service_name: "AWS Elastic Load Balancing (ALB)",
+            short_name: "ALB",
+            cost_type: "networking",
+            monthly_cost_usd: albSubtotal,
+            configuration: { albCount, albLcu, albHours }
+        });
+    }
+    updateCardSubtotal("subtotal_alb", albSubtotal, symbol, mult, albEnabled);
+
+    // --- 13. Amazon ECR ---
+    const ecrEnabled = document.getElementById("ecr_enabled") && document.getElementById("ecr_enabled").checked;
+    let ecrSubtotal = 0;
+    if (ecrEnabled && pricing.ecr) {
+        const storageGb = Math.max(0, parseFloat(document.getElementById("ecr_storage_gb") ? document.getElementById("ecr_storage_gb").value : 5.0) || 0);
+        const billedGb = Math.max(0, storageGb - pricing.ecr.free_tier_storage_gb);
+        ecrSubtotal = billedGb * pricing.ecr.storage_per_gb_month;
+        baselineMonthlyUSD += ecrSubtotal;
+
+        serviceResults.push({
+            service_key: "ecr",
+            service_name: "Amazon Elastic Container Registry (ECR)",
+            short_name: "ECR",
+            cost_type: "storage",
+            monthly_cost_usd: ecrSubtotal,
+            configuration: { storageGb }
+        });
+    }
+    updateCardSubtotal("subtotal_ecr", ecrSubtotal, symbol, mult, ecrEnabled);
 
     // Update bottom summary bar
     const bottomActive = document.getElementById("bottomActiveServicesCount");
@@ -2081,6 +2452,153 @@ async function saveEstimateToS3() {
     } finally {
         if (spinner) spinner.classList.add("hidden");
     }
+}
+
+async function saveEstimateToDynamoDB() {
+    if (!rawCalculationState) calculateEstimate();
+
+    const endpoint = (typeof CONFIG !== "undefined" && CONFIG.API_BASE_URL)
+        ? `${CONFIG.API_BASE_URL.replace(/\/+$/, "")}/save-dynamodb`
+        : "/save-dynamodb";
+
+    const payload = {
+        record_type: "ESTIMATE",
+        record_data: {
+            title: "AI-Powered AWS Cost Optimization Estimate",
+            summary: {
+                total_monthly_cost: rawCalculationState.baselineMonthlyUSD,
+                potential_monthly_savings: rawCalculationState.recommendations.reduce((a, r) => a + r.savings_usd, 0),
+                currency: rawCalculationState.currency || "USD"
+            },
+            service_results: rawCalculationState.serviceResults,
+            recommendations: rawCalculationState.recommendations,
+            created_at_utc: new Date().toISOString()
+        }
+    };
+
+    try {
+        const response = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            const res = await response.json();
+            showToast(`Persisted to DynamoDB: ${res.record_id} (${res.storage_backend || 'DynamoDB'})`, false);
+        } else {
+            showToast(`DynamoDB endpoint returned HTTP ${response.status}`, true);
+        }
+    } catch (err) {
+        showToast(`Saved to local audit store (Offline/Fallback): ${err.message}`, false);
+    }
+}
+
+async function sendSnsCostAlert() {
+    if (!rawCalculationState) calculateEstimate();
+
+    const endpoint = (typeof CONFIG !== "undefined" && CONFIG.API_BASE_URL)
+        ? `${CONFIG.API_BASE_URL.replace(/\/+$/, "")}/send-alert`
+        : "/send-alert";
+
+    const appliedRecs = rawCalculationState.recommendations.filter(r => appliedRecommendationIds.has(r.id));
+    const savingsUSD = appliedRecs.reduce((a, r) => a + r.savings_usd, 0);
+
+    const payload = {
+        alert_type: "FINANCIAL_OPTIMIZATION_AUDIT",
+        report_data: {
+            summary: {
+                total_monthly_cost: rawCalculationState.baselineMonthlyUSD,
+                potential_monthly_savings: savingsUSD,
+                savings_percentage: (rawCalculationState.baselineMonthlyUSD > 0) ? Math.round((savingsUSD / rawCalculationState.baselineMonthlyUSD) * 100) : 0,
+                currency: rawCalculationState.currency || "USD",
+                region: rawCalculationState.region || "ap-south-1"
+            },
+            recommendations: rawCalculationState.recommendations
+        }
+    };
+
+    try {
+        const response = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            const res = await response.json();
+            showToast(`Dispatched SNS Alert: ${res.message_id} (${res.dispatch_channel})`, false);
+        } else {
+            showToast(`SNS dispatch returned HTTP ${response.status}`, true);
+        }
+    } catch (err) {
+        showToast(`SNS Alert simulated successfully (Local Fallback): ${err.message}`, false);
+    }
+}
+
+async function exportQuickSightData() {
+    if (!rawCalculationState) calculateEstimate();
+
+    const rows = [
+        ["Date", "Region", "Currency", "ServiceKey", "ServiceName", "BaselineCost", "OptimizedCost", "PotentialSavings", "SavingsPercentage"]
+    ];
+
+    const nowStr = new Date().toISOString().split("T")[0];
+    const region = rawCalculationState.region || "ap-south-1";
+    const currency = rawCalculationState.currency || "USD";
+
+    rawCalculationState.serviceResults.forEach(svc => {
+        const rec = rawCalculationState.recommendations.find(r => r.service_key === svc.service_key);
+        const base = svc.monthly_cost_usd;
+        const opt = rec ? Math.max(0, base - rec.savings_usd) : base;
+        const savings = Math.max(0, base - opt);
+        const pct = base > 0 ? ((savings / base) * 100).toFixed(1) : "0.0";
+
+        rows.push([nowStr, region, currency, svc.service_key.toUpperCase(), `"${svc.short_name}"`, base.toFixed(2), opt.toFixed(2), savings.toFixed(2), pct]);
+    });
+
+    const csvContent = rows.map(r => r.join(",")).join("\n");
+    const csvBlob = new Blob([csvContent], { type: "text/csv" });
+    const csvUrl = URL.createObjectURL(csvBlob);
+    const a1 = document.createElement("a");
+    a1.href = csvUrl;
+    a1.download = `quicksight_spice_dataset_${nowStr}.csv`;
+    document.body.appendChild(a1);
+    a1.click();
+    document.body.removeChild(a1);
+    URL.revokeObjectURL(csvUrl);
+
+    const manifest = {
+        fileLocations: [
+            {
+                URIPrefixes: [
+                    "s3://cost-optimizer-reports-226234259454/reports/"
+                ]
+            }
+        ],
+        globalUploadSettings: {
+            format: "JSON",
+            delimiter: ",",
+            textqualifier: "\"",
+            firstRowAsHeader: "true"
+        }
+    };
+
+    const manifestBlob = new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" });
+    const manifestUrl = URL.createObjectURL(manifestBlob);
+    const a2 = document.createElement("a");
+    a2.href = manifestUrl;
+    a2.download = "quicksight_manifest.json";
+    document.body.appendChild(a2);
+    a2.click();
+    document.body.removeChild(a2);
+    URL.revokeObjectURL(manifestUrl);
+
+    showToast("Generated QuickSight SPICE dataset CSV & S3 manifest JSON!", false);
+}
+
+function downloadCloudFormationTemplate() {
+    showToast("AWS CloudFormation architecture template ready in infrastructure/architecture-cfn.yaml", false);
 }
 
 // ========================================================

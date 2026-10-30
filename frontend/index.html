@@ -52,13 +52,22 @@
                     </select>
                 </div>
 
-                <!-- Top Export Actions -->
-                <button id="saveS3Btn" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition flex items-center gap-1.5 shadow-xs">
+                <!-- Top Export & Cloud Service Actions -->
+                <button id="saveS3Btn" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition flex items-center gap-1.5 shadow-xs" title="Persist to Amazon S3 Reports Bucket">
                     <svg id="s3Spinner" class="w-3 h-3 animate-spin hidden" viewBox="0 0 24 24" fill="none">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                     <span>💾 Save S3</span>
+                </button>
+                <button id="saveDynamoDBBtn" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition flex items-center gap-1 shadow-xs" title="Persist to Amazon DynamoDB NoSQL Table">
+                    <span>⚡ DynamoDB</span>
+                </button>
+                <button id="sendSnsAlertBtn" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition flex items-center gap-1 shadow-xs" title="Dispatch Cost Alert via Amazon SNS">
+                    <span>🔔 Alert (SNS)</span>
+                </button>
+                <button id="exportQuickSightBtn" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition flex items-center gap-1 shadow-xs" title="Export QuickSight SPICE Dataset & S3 Manifest">
+                    <span>📈 QuickSight</span>
                 </button>
                 <button id="exportJsonBtn" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 transition shadow-xs">
                     📄 JSON
@@ -76,7 +85,7 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-1 pb-2 flex border-t border-slate-100 gap-2 overflow-x-auto">
             <button id="tabEstimator" class="mode-tab-pill active flex items-center gap-2">
                 <span>🧮 Cost Estimator</span>
-                <span class="px-1.5 py-0.2 rounded text-[10px] bg-blue-100 text-blue-800 font-bold">Input & Capacity Forms</span>
+                <span class="px-1.5 py-0.2 rounded text-[10px] bg-blue-100 text-blue-800 font-bold">13 Architecture Services</span>
             </button>
             <button id="tabDashboard" class="mode-tab-pill flex items-center gap-2">
                 <span>📊 Savings & Cost Dashboard</span>
@@ -85,6 +94,10 @@
             <button id="tabActualBilling" class="mode-tab-pill flex items-center gap-2">
                 <span>🛡️ Actual AWS Billing Telemetry</span>
                 <span class="px-1.5 py-0.2 rounded text-[10px] bg-slate-200 text-slate-700 font-bold">Live AWS ($0.00 MTD)</span>
+            </button>
+            <button id="tabArchitecture" class="mode-tab-pill flex items-center gap-2">
+                <span>🏗️ VPC & Architecture Topology</span>
+                <span class="px-1.5 py-0.2 rounded text-[10px] bg-purple-100 text-purple-800 font-bold">ECS, SNS, DynamoDB & QuickSight</span>
             </button>
         </div>
     </header>
@@ -132,25 +145,46 @@
 
                 <!-- Multi-Service Project Architecture Manager (Add / Remove Services) -->
                 <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pt-1">
-                    <div class="flex items-center gap-2 flex-wrap text-xs">
+                    <div class="flex items-center gap-1.5 flex-wrap text-xs">
                         <span class="font-bold text-slate-600 uppercase tracking-wider text-[11px]">Architecture Services:</span>
                         <button type="button" class="service-pill-btn active" data-service="ec2" id="pill_ec2">
-                            <span>✓ EC2 Compute</span>
+                            <span>✓ EC2</span>
                         </button>
                         <button type="button" class="service-pill-btn active" data-service="s3" id="pill_s3">
-                            <span>✓ S3 Storage</span>
+                            <span>✓ S3</span>
                         </button>
                         <button type="button" class="service-pill-btn active" data-service="rds" id="pill_rds">
-                            <span>✓ RDS Database</span>
+                            <span>✓ RDS</span>
                         </button>
                         <button type="button" class="service-pill-btn active" data-service="lambda" id="pill_lambda">
-                            <span>✓ Lambda Functions</span>
+                            <span>✓ Lambda</span>
                         </button>
                         <button type="button" class="service-pill-btn active" data-service="cw" id="pill_cw">
-                            <span>✓ CloudWatch Logs</span>
+                            <span>✓ CloudWatch</span>
                         </button>
                         <button type="button" class="service-pill-btn active" data-service="vpc" id="pill_vpc">
-                            <span>✓ VPC Networking</span>
+                            <span>✓ VPC</span>
+                        </button>
+                        <button type="button" class="service-pill-btn active" data-service="ecs" id="pill_ecs">
+                            <span>✓ ECS Fargate</span>
+                        </button>
+                        <button type="button" class="service-pill-btn active" data-service="dynamodb" id="pill_dynamodb">
+                            <span>✓ DynamoDB</span>
+                        </button>
+                        <button type="button" class="service-pill-btn active" data-service="sns" id="pill_sns">
+                            <span>✓ SNS Alerts</span>
+                        </button>
+                        <button type="button" class="service-pill-btn active" data-service="quicksight" id="pill_quicksight">
+                            <span>✓ QuickSight</span>
+                        </button>
+                        <button type="button" class="service-pill-btn active" data-service="route53" id="pill_route53">
+                            <span>✓ Route 53</span>
+                        </button>
+                        <button type="button" class="service-pill-btn active" data-service="alb" id="pill_alb">
+                            <span>✓ ALB</span>
+                        </button>
+                        <button type="button" class="service-pill-btn active" data-service="ecr" id="pill_ecr">
+                            <span>✓ ECR</span>
                         </button>
                     </div>
 
@@ -164,6 +198,9 @@
                 <!-- Scenario Presets Bar -->
                 <div class="flex items-center gap-2 flex-wrap pt-2 border-t border-slate-100 text-xs">
                     <span class="text-slate-500 font-semibold text-[11px]">⚡ Load Preset:</span>
+                    <button class="preset-btn px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold border border-purple-300 transition" data-preset="target_arch">
+                        🏗️ Target VPC + ECS + QuickSight Architecture
+                    </button>
                     <button class="preset-btn px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium border border-blue-200 transition" data-preset="webapp">
                         🚀 Full-Stack Web App
                     </button>
@@ -543,6 +580,260 @@
                         <span id="subtotal_vpc" class="font-bold text-cyan-700 font-mono">$49.01/mo</span>
                     </div>
                 </div>
+
+                <!-- 7. Amazon ECS (Fargate Container Compute) Card -->
+                <div class="enterprise-card p-4 space-y-3 flex flex-col justify-between" id="card-ecs">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <label class="flex items-center gap-2 font-bold text-sm text-orange-600 cursor-pointer">
+                                <input type="checkbox" id="ecs_enabled" checked class="w-4 h-4 text-orange-600 rounded border-slate-300 focus:ring-orange-500">
+                                <span>📦 Amazon ECS (Fargate)</span>
+                            </label>
+                            <span class="text-[10px] text-orange-700 bg-orange-50 px-2 py-0.5 rounded font-bold border border-orange-200">Containers</span>
+                        </div>
+                        <div class="space-y-2 text-xs">
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-slate-500 font-medium mb-1">vCPU Allocation</label>
+                                    <select id="ecs_vcpu" class="filter-select w-full text-xs">
+                                        <option value="0.25">0.25 vCPU</option>
+                                        <option value="0.5" selected>0.50 vCPU</option>
+                                        <option value="1.0">1.00 vCPU</option>
+                                        <option value="2.0">2.00 vCPU</option>
+                                        <option value="4.0">4.00 vCPU</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-slate-500 font-medium mb-1">Memory (RAM)</label>
+                                    <select id="ecs_memory" class="filter-select w-full text-xs">
+                                        <option value="0.5">0.5 GB</option>
+                                        <option value="1.0" selected>1.0 GB</option>
+                                        <option value="2.0">2.0 GB</option>
+                                        <option value="4.0">4.0 GB</option>
+                                        <option value="8.0">8.0 GB</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-slate-500 font-medium mb-1">Active Tasks</label>
+                                    <input type="number" id="ecs_task_count" value="1" min="1" max="50" class="filter-select w-full text-xs">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-500 font-medium mb-1">Launch Model</label>
+                                    <select id="ecs_launch_type" class="filter-select w-full text-xs">
+                                        <option value="Fargate" selected>Fargate (On-Demand)</option>
+                                        <option value="Fargate-Spot">Fargate Spot (70% Off)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 font-medium mb-1">Architecture</label>
+                                <select id="ecs_architecture" class="filter-select w-full text-xs">
+                                    <option value="x86_64" selected>Linux x86_64</option>
+                                    <option value="arm64">Linux ARM64 (AWS Graviton - 20% Off)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span class="text-slate-400">ECS Subtotal:</span>
+                        <span id="subtotal_ecs" class="font-bold text-orange-600 font-mono">$18.07/mo</span>
+                    </div>
+                </div>
+
+                <!-- 8. Amazon DynamoDB Card -->
+                <div class="enterprise-card p-4 space-y-3 flex flex-col justify-between" id="card-dynamodb">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <label class="flex items-center gap-2 font-bold text-sm text-purple-700 cursor-pointer">
+                                <input type="checkbox" id="dynamodb_enabled" checked class="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500">
+                                <span>⚡ Amazon DynamoDB</span>
+                            </label>
+                            <span class="text-[10px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded font-bold border border-purple-200">NoSQL DB</span>
+                        </div>
+                        <div class="space-y-2 text-xs">
+                            <div>
+                                <label class="block text-slate-500 font-medium mb-1">Capacity Mode</label>
+                                <select id="dynamodb_mode" class="filter-select w-full text-xs">
+                                    <option value="PAY_PER_REQUEST" selected>On-Demand (Pay-Per-Request)</option>
+                                    <option value="PROVISIONED">Provisioned (RCU / WCU)</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-slate-500 font-medium mb-1">Write Units / Mo</label>
+                                    <input type="number" id="dynamodb_writes" value="500000" min="0" step="50000" class="filter-select w-full text-xs">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-500 font-medium mb-1">Read Units / Mo</label>
+                                    <input type="number" id="dynamodb_reads" value="2000000" min="0" step="100000" class="filter-select w-full text-xs">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 font-medium mb-1">Storage (GB)</label>
+                                <input type="number" id="dynamodb_storage_gb" value="10" min="0" max="1000" class="filter-select w-full text-xs">
+                                <span class="text-[10px] text-emerald-600 mt-0.5 block">✓ 25 GB Free-Tier included</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span class="text-slate-400">DynamoDB Subtotal:</span>
+                        <span id="subtotal_dynamodb" class="font-bold text-purple-700 font-mono">$1.13/mo</span>
+                    </div>
+                </div>
+
+                <!-- 9. Amazon SNS Card -->
+                <div class="enterprise-card p-4 space-y-3 flex flex-col justify-between" id="card-sns">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <label class="flex items-center gap-2 font-bold text-sm text-rose-600 cursor-pointer">
+                                <input type="checkbox" id="sns_enabled" checked class="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500">
+                                <span>🔔 Amazon SNS (Alerts)</span>
+                            </label>
+                            <span class="text-[10px] text-rose-700 bg-rose-50 px-2 py-0.5 rounded font-bold border border-rose-200">Messaging</span>
+                        </div>
+                        <div class="space-y-2 text-xs">
+                            <div>
+                                <label class="block text-slate-500 font-medium mb-1">Topic Publish Requests / Mo</label>
+                                <input type="number" id="sns_publish_count" value="100000" min="0" step="10000" class="filter-select w-full text-xs">
+                                <span class="text-[10px] text-emerald-600 block">✓ First 1,000,000 requests free</span>
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 font-medium mb-1">Email Alert Deliveries / Mo</label>
+                                <input type="number" id="sns_email_count" value="2000" min="0" step="500" class="filter-select w-full text-xs">
+                                <span class="text-[10px] text-emerald-600 block">✓ First 1,000 emails free ($2/100k)</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span class="text-slate-400">SNS Subtotal:</span>
+                        <span id="subtotal_sns" class="font-bold text-rose-600 font-mono">$0.02/mo</span>
+                    </div>
+                </div>
+
+                <!-- 10. Amazon QuickSight Card -->
+                <div class="enterprise-card p-4 space-y-3 flex flex-col justify-between" id="card-quicksight">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <label class="flex items-center gap-2 font-bold text-sm text-teal-700 cursor-pointer">
+                                <input type="checkbox" id="quicksight_enabled" checked class="w-4 h-4 text-teal-600 rounded border-slate-300 focus:ring-teal-500">
+                                <span>📈 Amazon QuickSight (BI)</span>
+                            </label>
+                            <span class="text-[10px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded font-bold border border-teal-200">Analytics</span>
+                        </div>
+                        <div class="space-y-2 text-xs">
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-slate-500 font-medium mb-1">Author Users</label>
+                                    <input type="number" id="quicksight_authors" value="1" min="1" max="10" class="filter-select w-full text-xs">
+                                    <span class="text-[10px] text-slate-400">$24/author-mo</span>
+                                </div>
+                                <div>
+                                    <label class="block text-slate-500 font-medium mb-1">Reader Users</label>
+                                    <input type="number" id="quicksight_readers" value="2" min="0" max="50" class="filter-select w-full text-xs">
+                                    <span class="text-[10px] text-slate-400">$5/reader-mo max</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 font-medium mb-1">SPICE Capacity (GB)</label>
+                                <input type="number" id="quicksight_spice_gb" value="10" min="0" max="100" class="filter-select w-full text-xs">
+                                <span class="text-[10px] text-emerald-600 block">✓ 10 GB SPICE included per Author</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span class="text-slate-400">QuickSight Subtotal:</span>
+                        <span id="subtotal_quicksight" class="font-bold text-teal-700 font-mono">$34.00/mo</span>
+                    </div>
+                </div>
+
+                <!-- 11. Amazon Route 53 Card -->
+                <div class="enterprise-card p-4 space-y-3 flex flex-col justify-between" id="card-route53">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <label class="flex items-center gap-2 font-bold text-sm text-indigo-700 cursor-pointer">
+                                <input type="checkbox" id="route53_enabled" checked class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                                <span>🌐 Amazon Route 53</span>
+                            </label>
+                            <span class="text-[10px] text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded font-bold border border-indigo-200">DNS</span>
+                        </div>
+                        <div class="space-y-2 text-xs">
+                            <div>
+                                <label class="block text-slate-500 font-medium mb-1">Hosted Zones</label>
+                                <input type="number" id="route53_zones" value="1" min="1" max="10" class="filter-select w-full text-xs">
+                                <span class="text-[10px] text-slate-400">$0.50/zone-mo</span>
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 font-medium mb-1">DNS Queries / Mo (Millions)</label>
+                                <input type="number" id="route53_queries" value="1.0" min="0" step="0.5" class="filter-select w-full text-xs">
+                                <span class="text-[10px] text-slate-400">$0.40 per 1M queries</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span class="text-slate-400">Route 53 Subtotal:</span>
+                        <span id="subtotal_route53" class="font-bold text-indigo-700 font-mono">$0.90/mo</span>
+                    </div>
+                </div>
+
+                <!-- 12. Elastic Load Balancing (ALB) Card -->
+                <div class="enterprise-card p-4 space-y-3 flex flex-col justify-between" id="card-alb">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <label class="flex items-center gap-2 font-bold text-sm text-violet-700 cursor-pointer">
+                                <input type="checkbox" id="alb_enabled" checked class="w-4 h-4 text-violet-600 rounded border-slate-300 focus:ring-violet-500">
+                                <span>⚖️ Load Balancer (ALB)</span>
+                            </label>
+                            <span class="text-[10px] text-violet-700 bg-violet-50 px-2 py-0.5 rounded font-bold border border-violet-200">Traffic Ingress</span>
+                        </div>
+                        <div class="space-y-2 text-xs">
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-slate-500 font-medium mb-1">ALB Count</label>
+                                    <input type="number" id="alb_count" value="1" min="1" max="5" class="filter-select w-full text-xs">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-500 font-medium mb-1">LCU Capacity Units</label>
+                                    <input type="number" id="alb_lcu" value="1.0" min="0.5" step="0.5" class="filter-select w-full text-xs">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 font-medium mb-1">Monthly Operating Hours</label>
+                                <input type="number" id="alb_hours" value="730" min="1" max="744" class="filter-select w-full text-xs">
+                                <span class="text-[10px] text-slate-400">$0.0225/hr + $0.008/LCU-hr</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span class="text-slate-400">ALB Subtotal:</span>
+                        <span id="subtotal_alb" class="font-bold text-violet-700 font-mono">$22.27/mo</span>
+                    </div>
+                </div>
+
+                <!-- 13. Amazon ECR Card -->
+                <div class="enterprise-card p-4 space-y-3 flex flex-col justify-between" id="card-ecr">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <label class="flex items-center gap-2 font-bold text-sm text-cyan-700 cursor-pointer">
+                                <input type="checkbox" id="ecr_enabled" checked class="w-4 h-4 text-cyan-600 rounded border-slate-300 focus:ring-cyan-500">
+                                <span>🐳 Amazon ECR Registry</span>
+                            </label>
+                            <span class="text-[10px] text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded font-bold border border-cyan-200">Registry</span>
+                        </div>
+                        <div class="space-y-2 text-xs">
+                            <div>
+                                <label class="block text-slate-500 font-medium mb-1">Container Image Storage (GB)</label>
+                                <input type="number" id="ecr_storage_gb" value="5.0" min="0" max="100" step="1" class="filter-select w-full text-xs">
+                                <span class="text-[10px] text-emerald-600 block">✓ First 500 MB free ($0.10/GB-mo)</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span class="text-slate-400">ECR Subtotal:</span>
+                        <span id="subtotal_ecr" class="font-bold text-cyan-700 font-mono">$0.45/mo</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Sticky Bottom Project Total & Calculation Trigger Bar -->
@@ -890,6 +1181,176 @@
                 </h3>
                 <div id="actualRecsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- SECTION 4: TARGET CLOUD ARCHITECTURE & CI/CD TOPOLOGY    -->
+        <!-- ======================================================== -->
+        <div id="modeArchitectureContainer" class="hidden space-y-6">
+            <!-- Architecture Overview Card -->
+            <div class="enterprise-card p-6 bg-white space-y-4">
+                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xl">🏗️</span>
+                            <h2 class="text-base font-bold text-slate-900">End-to-End Enterprise Cloud Architecture & CI/CD Topology</h2>
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                                13 AWS Services Integrated
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1">
+                            Complete system topology matching the project design specification: Ingress VPC routing, containerized ECS Fargate compute, serverless database & storage, alerting, and QuickSight visual intelligence.
+                        </p>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button id="downloadCfnBtn" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition flex items-center gap-1.5 border border-slate-300">
+                            <span>📄 CloudFormation IaC</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Visual Architecture Topology Flowchart Grid -->
+                <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-4">
+                    <div class="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        1. Ingress Traffic & Container Compute Inside Amazon VPC
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 items-center">
+                        <!-- Step A: Users -->
+                        <div class="p-3 rounded-lg border border-slate-200 bg-white text-center shadow-xs">
+                            <div class="text-2xl mb-1">👥</div>
+                            <div class="font-bold text-xs text-slate-800">Users (Web / Mobile)</div>
+                            <div class="text-[10px] text-slate-400">HTTPS Internet Traffic</div>
+                        </div>
+
+                        <!-- Step B: Route 53 & ALB -->
+                        <div class="p-3 rounded-lg border border-indigo-200 bg-indigo-50/50 text-center shadow-xs">
+                            <div class="text-2xl mb-1">🌐 ➔ ⚖️</div>
+                            <div class="font-bold text-xs text-indigo-900">Route 53 & ALB</div>
+                            <div class="text-[10px] text-indigo-700">DNS Routing & Load Balancing</div>
+                        </div>
+
+                        <!-- Step C: ECS Fargate Inside VPC -->
+                        <div class="p-3 rounded-lg border-2 border-orange-400 bg-orange-50 text-center shadow-sm">
+                            <div class="text-2xl mb-1">📦</div>
+                            <div class="font-extrabold text-xs text-orange-900">Amazon ECS (Fargate)</div>
+                            <div class="text-[10px] text-orange-800 font-semibold">Core Microservice inside VPC</div>
+                        </div>
+
+                        <!-- Step D: QuickSight & Optimized Cost -->
+                        <div class="p-3 rounded-lg border-2 border-emerald-400 bg-emerald-50 text-center shadow-sm">
+                            <div class="text-2xl mb-1">📈 ➔ 💵</div>
+                            <div class="font-extrabold text-xs text-emerald-900">QuickSight & Optimized Cost</div>
+                            <div class="text-[10px] text-emerald-800 font-bold">SPICE Visual BI Telemetry</div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Integrated Services connected to ECS -->
+                    <div class="pt-3 border-t border-slate-200">
+                        <div class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                            2. Microservice Integration Grid (Directly Connected to ECS Fargate)
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
+                            <div class="p-3 rounded-lg border border-blue-200 bg-white text-center">
+                                <div class="text-xl mb-1">🪣</div>
+                                <div class="font-bold text-slate-800">Amazon S3</div>
+                                <div class="text-[10px] text-slate-500">Reports & Static Web</div>
+                            </div>
+                            <div class="p-3 rounded-lg border border-pink-200 bg-white text-center">
+                                <div class="text-xl mb-1">📊</div>
+                                <div class="font-bold text-slate-800">Amazon CloudWatch</div>
+                                <div class="text-[10px] text-slate-500">Alarms, Metrics & Logs</div>
+                            </div>
+                            <div class="p-3 rounded-lg border border-rose-200 bg-white text-center">
+                                <div class="text-xl mb-1">🔔</div>
+                                <div class="font-bold text-slate-800">Amazon SNS</div>
+                                <div class="text-[10px] text-slate-500">Cost & Budget Alerts</div>
+                            </div>
+                            <div class="p-3 rounded-lg border border-amber-200 bg-white text-center">
+                                <div class="text-xl mb-1">⚡</div>
+                                <div class="font-bold text-slate-800">AWS Lambda</div>
+                                <div class="text-[10px] text-slate-500">Serverless Automation</div>
+                            </div>
+                            <div class="p-3 rounded-lg border border-purple-200 bg-white text-center">
+                                <div class="text-xl mb-1">🗄️</div>
+                                <div class="font-bold text-slate-800">Amazon DynamoDB</div>
+                                <div class="text-[10px] text-slate-500">Historical Audit Records</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: CI/CD Pipeline Workflow -->
+                    <div class="pt-3 border-t border-slate-200">
+                        <div class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                            3. Automated CI/CD Pipeline (GitHub Actions ➔ Amazon ECR ➔ Amazon ECS)
+                        </div>
+                        <div class="flex items-center gap-3 overflow-x-auto text-xs py-2">
+                            <div class="px-3 py-2 rounded-lg bg-white border border-slate-300 font-semibold whitespace-nowrap">
+                                💻 Git Push (main)
+                            </div>
+                            <div class="text-slate-400 font-bold">➔</div>
+                            <div class="px-3 py-2 rounded-lg bg-blue-50 border border-blue-300 text-blue-800 font-semibold whitespace-nowrap">
+                                🐙 GitHub Actions CI (Tests)
+                            </div>
+                            <div class="text-slate-400 font-bold">➔</div>
+                            <div class="px-3 py-2 rounded-lg bg-orange-50 border border-orange-300 text-orange-800 font-semibold whitespace-nowrap">
+                                🐳 Docker Build & ECR Push
+                            </div>
+                            <div class="text-slate-400 font-bold">➔</div>
+                            <div class="px-3 py-2 rounded-lg bg-purple-50 border border-purple-300 text-purple-800 font-semibold whitespace-nowrap">
+                                📦 ECS Task Update (Fargate)
+                            </div>
+                            <div class="text-slate-400 font-bold">➔</div>
+                            <div class="px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 font-semibold whitespace-nowrap">
+                                🌐 S3 Website Sync
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Operational Action Panels -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                    <!-- Action 1: SNS Dispatch -->
+                    <div class="p-4 rounded-xl border border-rose-200 bg-rose-50/40 space-y-2 text-xs">
+                        <div class="font-bold text-rose-800 flex items-center gap-1.5">
+                            <span>🔔 Amazon SNS Live Dispatch</span>
+                        </div>
+                        <p class="text-rose-700/80">
+                            Dispatches cost threshold notifications and high-impact recommendation alerts.
+                        </p>
+                        <button id="triggerSnsModalBtn" class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold transition shadow-xs w-full">
+                            Send Optimization Alert via SNS
+                        </button>
+                    </div>
+
+                    <!-- Action 2: DynamoDB Persistence -->
+                    <div class="p-4 rounded-xl border border-purple-200 bg-purple-50/40 space-y-2 text-xs">
+                        <div class="font-bold text-purple-800 flex items-center gap-1.5">
+                            <span>⚡ Amazon DynamoDB Audit Store</span>
+                        </div>
+                        <p class="text-purple-700/80">
+                            Persists timestamped estimates and recommendations to table <code class="bg-purple-100 px-1 py-0.5 rounded">CostOptimizerRecords</code>.
+                        </p>
+                        <button id="triggerDynamoModalBtn" class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold transition shadow-xs w-full">
+                            Save Current Architecture to DynamoDB
+                        </button>
+                    </div>
+
+                    <!-- Action 3: QuickSight SPICE Exporter -->
+                    <div class="p-4 rounded-xl border border-teal-200 bg-teal-50/40 space-y-2 text-xs">
+                        <div class="font-bold text-teal-800 flex items-center gap-1.5">
+                            <span>📈 Amazon QuickSight SPICE Manifest</span>
+                        </div>
+                        <p class="text-teal-700/80">
+                            Generates QuickSight S3 dataset manifest and tabular CSV for business intelligence reporting.
+                        </p>
+                        <button id="triggerQuickSightModalBtn" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold transition shadow-xs w-full">
+                            Generate QuickSight Dataset Manifest
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

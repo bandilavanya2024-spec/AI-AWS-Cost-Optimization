@@ -1,0 +1,65 @@
+{
+  "family": "cost-optimizer-backend-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::226234259454:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::226234259454:role/AWSLambdaCostOptimizationRole",
+  "containerDefinitions": [
+    {
+      "name": "cost-optimizer-backend",
+      "image": "226234259454.dkr.ecr.ap-south-1.amazonaws.com/cost-optimizer-backend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "PORT",
+          "value": "8080"
+        },
+        {
+          "name": "AWS_REGION",
+          "value": "ap-south-1"
+        },
+        {
+          "name": "DYNAMODB_TABLE_NAME",
+          "value": "CostOptimizerRecords"
+        },
+        {
+          "name": "REPORTS_S3_BUCKET",
+          "value": "cost-optimizer-reports-226234259454"
+        },
+        {
+          "name": "SNS_TOPIC_ARN",
+          "value": "arn:aws:sns:ap-south-1:226234259454:CostOptimizationAlertsTopic"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cost-optimizer-backend",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:8080/health || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
+      }
+    }
+  ]
+}

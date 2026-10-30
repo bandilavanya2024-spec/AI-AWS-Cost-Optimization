@@ -99,6 +99,59 @@ PRICING_REGISTRY: Dict[str, Dict[str, Any]] = {
             "public_ipv4_per_hr": 0.005,
             "source": "Amazon VPC Pricing (ap-south-1)",
             "verified_date": "2026-10-01"
+        },
+        "ecs": {
+            "vcpu_per_hr": 0.04048,
+            "memory_gb_per_hr": 0.004445,
+            "fargate_spot_discount": 0.70,
+            "graviton_arm_discount": 0.20,
+            "source": "AWS Fargate Pricing (ap-south-1)",
+            "verified_date": "2026-10-01"
+        },
+        "dynamodb": {
+            "on_demand_write_per_million": 1.25,
+            "on_demand_read_per_million": 0.25,
+            "provisioned_wcu_per_hr": 0.00065,
+            "provisioned_rcu_per_hr": 0.00013,
+            "storage_per_gb_month": 0.25,
+            "free_tier_storage_gb": 25.0,
+            "source": "Amazon DynamoDB Pricing (ap-south-1)",
+            "verified_date": "2026-10-01"
+        },
+        "sns": {
+            "publish_per_million": 0.50,
+            "email_per_100k": 2.00,
+            "sms_per_message": 0.0075,
+            "free_tier_publish": 1000000,
+            "free_tier_email": 1000,
+            "source": "Amazon SNS Pricing (ap-south-1)",
+            "verified_date": "2026-10-01"
+        },
+        "quicksight": {
+            "author_per_month": 24.00,
+            "reader_per_month": 5.00,
+            "spice_per_gb_month": 0.25,
+            "source": "Amazon QuickSight Enterprise Pricing",
+            "verified_date": "2026-10-01"
+        },
+        "route53": {
+            "hosted_zone_per_month": 0.50,
+            "queries_per_million": 0.40,
+            "source": "Amazon Route 53 Pricing",
+            "verified_date": "2026-10-01"
+        },
+        "alb": {
+            "alb_per_hr": 0.0225,
+            "lcu_per_hr": 0.008,
+            "source": "AWS Elastic Load Balancing (ap-south-1)",
+            "verified_date": "2026-10-01"
+        },
+        "ecr": {
+            "storage_per_gb_month": 0.10,
+            "data_transfer_out_per_gb": 0.109,
+            "free_tier_storage_gb": 0.5,
+            "source": "Amazon ECR Pricing (ap-south-1)",
+            "verified_date": "2026-10-01"
         }
     },
     "us-east-1": {
@@ -175,6 +228,59 @@ PRICING_REGISTRY: Dict[str, Dict[str, Any]] = {
             "nat_data_per_gb": 0.045,
             "public_ipv4_per_hr": 0.005,
             "source": "Amazon VPC Pricing (us-east-1)",
+            "verified_date": "2026-10-01"
+        },
+        "ecs": {
+            "vcpu_per_hr": 0.04048,
+            "memory_gb_per_hr": 0.004445,
+            "fargate_spot_discount": 0.70,
+            "graviton_arm_discount": 0.20,
+            "source": "AWS Fargate Pricing (us-east-1)",
+            "verified_date": "2026-10-01"
+        },
+        "dynamodb": {
+            "on_demand_write_per_million": 1.25,
+            "on_demand_read_per_million": 0.25,
+            "provisioned_wcu_per_hr": 0.00065,
+            "provisioned_rcu_per_hr": 0.00013,
+            "storage_per_gb_month": 0.25,
+            "free_tier_storage_gb": 25.0,
+            "source": "Amazon DynamoDB Pricing (us-east-1)",
+            "verified_date": "2026-10-01"
+        },
+        "sns": {
+            "publish_per_million": 0.50,
+            "email_per_100k": 2.00,
+            "sms_per_message": 0.0075,
+            "free_tier_publish": 1000000,
+            "free_tier_email": 1000,
+            "source": "Amazon SNS Pricing (us-east-1)",
+            "verified_date": "2026-10-01"
+        },
+        "quicksight": {
+            "author_per_month": 24.00,
+            "reader_per_month": 5.00,
+            "spice_per_gb_month": 0.25,
+            "source": "Amazon QuickSight Enterprise Pricing",
+            "verified_date": "2026-10-01"
+        },
+        "route53": {
+            "hosted_zone_per_month": 0.50,
+            "queries_per_million": 0.40,
+            "source": "Amazon Route 53 Pricing",
+            "verified_date": "2026-10-01"
+        },
+        "alb": {
+            "alb_per_hr": 0.0225,
+            "lcu_per_hr": 0.008,
+            "source": "AWS Elastic Load Balancing (us-east-1)",
+            "verified_date": "2026-10-01"
+        },
+        "ecr": {
+            "storage_per_gb_month": 0.10,
+            "data_transfer_out_per_gb": 0.090,
+            "free_tier_storage_gb": 0.5,
+            "source": "Amazon ECR Pricing (us-east-1)",
             "verified_date": "2026-10-01"
         }
     }
@@ -683,6 +789,427 @@ def calculate_vpc_cost(config: Dict[str, Any], region: str = "ap-south-1") -> Di
     }
 
 
+def calculate_ecs_cost(config: Dict[str, Any], region: str = "ap-south-1") -> Dict[str, Any]:
+    """
+    Calculates Amazon ECS (AWS Fargate) containerized compute monthly estimated cost.
+    Formula:
+      vCPU Rate = vcpu_base * (0.80 if ARM64 else 1.0) * (0.30 if Fargate Spot else 1.0)
+      RAM Rate = ram_base * (0.80 if ARM64 else 1.0) * (0.30 if Fargate Spot else 1.0)
+      Task Hours = hours_per_day * days_per_month * task_count
+      Total = (vcpu * vcpu_rate + ram_gb * ram_rate) * Task Hours
+    """
+    pricing = get_pricing_registry(region)["ecs"]
+    vcpu = max(0.25, float(config.get("vcpu", 0.5)))
+    memory_gb = max(0.5, float(config.get("memory_gb", 1.0)))
+    task_count = max(1, int(config.get("task_count", 1)))
+    hours_per_day = min(24.0, max(0.0, float(config.get("hours_per_day", 24.0))))
+    days_per_month = min(31.0, max(0.0, float(config.get("days_per_month", 30.5))))
+    launch_type = config.get("launch_type", "Fargate")  # "Fargate" or "Fargate-Spot"
+    architecture = config.get("architecture", "x86_64")  # "x86_64" or "arm64"
+
+    monthly_hours = hours_per_day * days_per_month
+
+    # Multipliers
+    arch_mult = (1.0 - pricing["graviton_arm_discount"]) if architecture == "arm64" else 1.0
+    spot_mult = (1.0 - pricing["fargate_spot_discount"]) if launch_type == "Fargate-Spot" else 1.0
+
+    base_vcpu_price = pricing["vcpu_per_hr"]
+    base_ram_price = pricing["memory_gb_per_hr"]
+
+    effective_vcpu_price = base_vcpu_price * arch_mult * spot_mult
+    effective_ram_price = base_ram_price * arch_mult * spot_mult
+
+    hourly_task_cost = (vcpu * effective_vcpu_price) + (memory_gb * effective_ram_price)
+    compute_cost = hourly_task_cost * task_count * monthly_hours
+    subtotal = round(compute_cost, 2)
+
+    return {
+        "service_name": "Amazon Elastic Container Service (ECS Fargate)",
+        "service_key": "ecs",
+        "monthly_cost": subtotal,
+        "monthly_cost_formatted": f"${subtotal:,.2f}",
+        "components": [
+            {
+                "name": f"Fargate vCPU ({architecture}, {launch_type})",
+                "quantity": f"{task_count} task(s) × {vcpu} vCPU @ {monthly_hours:.1f} hrs",
+                "unit": "vCPU-Hours",
+                "unit_price": f"${effective_vcpu_price:.5f}/vCPU-hr",
+                "formula": f"{task_count} × {vcpu} × {monthly_hours:.1f} hrs × ${effective_vcpu_price:.5f}",
+                "subtotal": round(vcpu * effective_vcpu_price * task_count * monthly_hours, 2),
+                "pricing_source": f"AWS Fargate ({architecture})"
+            },
+            {
+                "name": f"Fargate Memory ({architecture}, {launch_type})",
+                "quantity": f"{task_count} task(s) × {memory_gb} GB @ {monthly_hours:.1f} hrs",
+                "unit": "GB-Hours",
+                "unit_price": f"${effective_ram_price:.5f}/GB-hr",
+                "formula": f"{task_count} × {memory_gb} × {monthly_hours:.1f} hrs × ${effective_ram_price:.5f}",
+                "subtotal": round(memory_gb * effective_ram_price * task_count * monthly_hours, 2),
+                "pricing_source": f"AWS Fargate Memory ({launch_type})"
+            }
+        ],
+        "configuration": {
+            "vcpu": vcpu,
+            "memory_gb": memory_gb,
+            "task_count": task_count,
+            "hours_per_day": hours_per_day,
+            "days_per_month": days_per_month,
+            "launch_type": launch_type,
+            "architecture": architecture,
+            "monthly_hours": monthly_hours
+        }
+    }
+
+
+def calculate_dynamodb_cost(config: Dict[str, Any], region: str = "ap-south-1") -> Dict[str, Any]:
+    """
+    Calculates Amazon DynamoDB NoSQL Database monthly estimated cost.
+    Supports On-Demand (Pay-Per-Request) and Provisioned capacity.
+    """
+    pricing = get_pricing_registry(region)["dynamodb"]
+    billing_mode = config.get("billing_mode", "PAY_PER_REQUEST")
+    storage_gb = max(0.0, float(config.get("storage_gb", 10.0)))
+    apply_free_tier = bool(config.get("apply_free_tier", True))
+
+    free_storage = pricing["free_tier_storage_gb"] if apply_free_tier else 0.0
+    billed_storage = max(0.0, storage_gb - free_storage)
+    storage_cost = billed_storage * pricing["storage_per_gb_month"]
+
+    components = []
+    if billing_mode == "PROVISIONED":
+        wcu = max(1, int(config.get("provisioned_wcu", 5)))
+        rcu = max(1, int(config.get("provisioned_rcu", 5)))
+        hours = 730.0
+        wcu_cost = wcu * hours * pricing["provisioned_wcu_per_hr"]
+        rcu_cost = rcu * hours * pricing["provisioned_rcu_per_hr"]
+        request_cost = wcu_cost + rcu_cost
+
+        components.append({
+            "name": "DynamoDB Provisioned Write Capacity (WCU)",
+            "quantity": f"{wcu} WCU @ {hours:.0f} hrs",
+            "unit": "WCU-Hours",
+            "unit_price": f"${pricing['provisioned_wcu_per_hr']:.5f}/WCU-hr",
+            "formula": f"{wcu} × 730 hrs × ${pricing['provisioned_wcu_per_hr']:.5f}",
+            "subtotal": round(wcu_cost, 2),
+            "pricing_source": "DynamoDB Provisioned"
+        })
+        components.append({
+            "name": "DynamoDB Provisioned Read Capacity (RCU)",
+            "quantity": f"{rcu} RCU @ {hours:.0f} hrs",
+            "unit": "RCU-Hours",
+            "unit_price": f"${pricing['provisioned_rcu_per_hr']:.5f}/RCU-hr",
+            "formula": f"{rcu} × 730 hrs × ${pricing['provisioned_rcu_per_hr']:.5f}",
+            "subtotal": round(rcu_cost, 2),
+            "pricing_source": "DynamoDB Provisioned"
+        })
+    else:  # PAY_PER_REQUEST
+        write_units = max(0, int(config.get("write_requests_per_month", 500000)))
+        read_units = max(0, int(config.get("read_requests_per_month", 2000000)))
+        write_cost = (write_units / 1000000.0) * pricing["on_demand_write_per_million"]
+        read_cost = (read_units / 1000000.0) * pricing["on_demand_read_per_million"]
+        request_cost = write_cost + read_cost
+
+        components.append({
+            "name": "DynamoDB On-Demand Write Requests (WRU)",
+            "quantity": f"{write_units:,} Write Requests",
+            "unit": "Million Requests",
+            "unit_price": f"${pricing['on_demand_write_per_million']:.2f}/1M",
+            "formula": f"({write_units:,} / 1M) × ${pricing['on_demand_write_per_million']:.2f}",
+            "subtotal": round(write_cost, 2),
+            "pricing_source": "DynamoDB On-Demand"
+        })
+        components.append({
+            "name": "DynamoDB On-Demand Read Requests (RRU)",
+            "quantity": f"{read_units:,} Read Requests",
+            "unit": "Million Requests",
+            "unit_price": f"${pricing['on_demand_read_per_million']:.2f}/1M",
+            "formula": f"({read_units:,} / 1M) × ${pricing['on_demand_read_per_million']:.2f}",
+            "subtotal": round(read_cost, 2),
+            "pricing_source": "DynamoDB On-Demand"
+        })
+
+    components.append({
+        "name": "DynamoDB Table Data Storage",
+        "quantity": f"{storage_gb:.1f} GB ({billed_storage:.1f} GB billed)",
+        "unit": "GB-Month",
+        "unit_price": f"${pricing['storage_per_gb_month']:.2f}/GB-mo",
+        "formula": f"max(0, {storage_gb:.1f} - {free_storage:.1f}) × ${pricing['storage_per_gb_month']:.2f}",
+        "subtotal": round(storage_cost, 2),
+        "pricing_source": "DynamoDB Storage"
+    })
+
+    subtotal = round(request_cost + storage_cost, 2)
+    return {
+        "service_name": "Amazon DynamoDB (Serverless NoSQL)",
+        "service_key": "dynamodb",
+        "monthly_cost": subtotal,
+        "monthly_cost_formatted": f"${subtotal:,.2f}",
+        "components": components,
+        "configuration": {
+            "billing_mode": billing_mode,
+            "storage_gb": storage_gb,
+            "apply_free_tier": apply_free_tier
+        }
+    }
+
+
+def calculate_sns_cost(config: Dict[str, Any], region: str = "ap-south-1") -> Dict[str, Any]:
+    """
+    Calculates Amazon SNS (Simple Notification Service) monthly estimated cost.
+    Formula:
+      Publish Cost = max(0, publish_requests - free_publish) / 1M * price_per_million
+      Email Cost = max(0, email_count - free_email) / 100k * email_rate
+      SMS Cost = sms_count * sms_rate
+    """
+    pricing = get_pricing_registry(region)["sns"]
+    publish_count = max(0, int(config.get("publish_requests", 200000)))
+    email_count = max(0, int(config.get("email_notifications", 2000)))
+    sms_count = max(0, int(config.get("sms_notifications", 0)))
+    apply_free_tier = bool(config.get("apply_free_tier", True))
+
+    free_publish = pricing["free_tier_publish"] if apply_free_tier else 0
+    billed_publish = max(0, publish_count - free_publish)
+    publish_cost = (billed_publish / 1000000.0) * pricing["publish_per_million"]
+
+    free_email = pricing["free_tier_email"] if apply_free_tier else 0
+    billed_email = max(0, email_count - free_email)
+    email_cost = (billed_email / 100000.0) * pricing["email_per_100k"]
+
+    sms_cost = sms_count * pricing["sms_per_message"]
+    subtotal = round(publish_cost + email_cost + sms_cost, 2)
+
+    return {
+        "service_name": "Amazon Simple Notification Service (SNS)",
+        "service_key": "sns",
+        "monthly_cost": subtotal,
+        "monthly_cost_formatted": f"${subtotal:,.2f}",
+        "components": [
+            {
+                "name": "SNS Topic Publish API Requests",
+                "quantity": f"{publish_count:,} requests ({billed_publish:,} billed)",
+                "unit": "Million Requests",
+                "unit_price": f"${pricing['publish_per_million']:.2f}/1M",
+                "formula": f"({billed_publish:,} / 1M) × ${pricing['publish_per_million']:.2f}",
+                "subtotal": round(publish_cost, 2),
+                "pricing_source": "AWS SNS API Requests"
+            },
+            {
+                "name": "SNS Email Alert Deliveries",
+                "quantity": f"{email_count:,} emails ({billed_email:,} billed)",
+                "unit": "Per 100,000",
+                "unit_price": f"${pricing['email_per_100k']:.2f}/100K",
+                "formula": f"({billed_email:,} / 100K) × ${pricing['email_per_100k']:.2f}",
+                "subtotal": round(email_cost, 2),
+                "pricing_source": "AWS SNS Email Delivery"
+            }
+        ],
+        "configuration": {
+            "publish_requests": publish_count,
+            "email_notifications": email_count,
+            "sms_notifications": sms_count,
+            "apply_free_tier": apply_free_tier
+        }
+    }
+
+
+def calculate_quicksight_cost(config: Dict[str, Any], region: str = "ap-south-1") -> Dict[str, Any]:
+    """
+    Calculates Amazon QuickSight Business Intelligence dashboard monthly estimated cost.
+    Formula:
+      Authors Cost = author_count * author_monthly_rate
+      Readers Cost = reader_count * reader_monthly_rate
+      SPICE Cost = max(0, spice_gb - (author_count * 10GB_included)) * spice_rate
+    """
+    pricing = get_pricing_registry(region)["quicksight"]
+    authors = max(1, int(config.get("author_users", 1)))
+    readers = max(0, int(config.get("reader_users", 2)))
+    spice_gb = max(0.0, float(config.get("spice_storage_gb", 10.0)))
+
+    authors_cost = authors * pricing["author_per_month"]
+    readers_cost = readers * pricing["reader_per_month"]
+
+    included_spice = authors * 10.0  # 10GB included per author
+    billed_spice = max(0.0, spice_gb - included_spice)
+    spice_cost = billed_spice * pricing["spice_per_gb_month"]
+
+    subtotal = round(authors_cost + readers_cost + spice_cost, 2)
+
+    return {
+        "service_name": "Amazon QuickSight (Executive BI Analytics)",
+        "service_key": "quicksight",
+        "monthly_cost": subtotal,
+        "monthly_cost_formatted": f"${subtotal:,.2f}",
+        "components": [
+            {
+                "name": "QuickSight Enterprise Authors",
+                "quantity": f"{authors} Author User(s)",
+                "unit": "Users/Mo",
+                "unit_price": f"${pricing['author_per_month']:.2f}/user-mo",
+                "formula": f"{authors} × ${pricing['author_per_month']:.2f}",
+                "subtotal": round(authors_cost, 2),
+                "pricing_source": "QuickSight Enterprise"
+            },
+            {
+                "name": "QuickSight Interactive Readers",
+                "quantity": f"{readers} Reader User(s)",
+                "unit": "Users/Mo",
+                "unit_price": f"${pricing['reader_per_month']:.2f}/user-mo",
+                "formula": f"{readers} × ${pricing['reader_per_month']:.2f}",
+                "subtotal": round(readers_cost, 2),
+                "pricing_source": "QuickSight Readers"
+            },
+            {
+                "name": "QuickSight SPICE In-Memory Storage",
+                "quantity": f"{spice_gb:.1f} GB ({billed_spice:.1f} GB billed beyond {included_spice:.0f} GB included)",
+                "unit": "GB-Month",
+                "unit_price": f"${pricing['spice_per_gb_month']:.2f}/GB-mo",
+                "formula": f"max(0, {spice_gb:.1f} - {included_spice:.1f}) × ${pricing['spice_per_gb_month']:.2f}",
+                "subtotal": round(spice_cost, 2),
+                "pricing_source": "QuickSight SPICE Storage"
+            }
+        ],
+        "configuration": {
+            "author_users": authors,
+            "reader_users": readers,
+            "spice_storage_gb": spice_gb
+        }
+    }
+
+
+def calculate_route53_cost(config: Dict[str, Any], region: str = "ap-south-1") -> Dict[str, Any]:
+    """
+    Calculates Amazon Route 53 DNS routing monthly estimated cost.
+    Formula:
+      Zones Cost = hosted_zones * zone_price_per_month
+      Queries Cost = queries_millions * query_price_per_million
+    """
+    pricing = get_pricing_registry(region)["route53"]
+    hosted_zones = max(1, int(config.get("hosted_zones", 1)))
+    queries_millions = max(0.0, float(config.get("queries_millions", 1.0)))
+
+    zones_cost = hosted_zones * pricing["hosted_zone_per_month"]
+    queries_cost = queries_millions * pricing["queries_per_million"]
+    subtotal = round(zones_cost + queries_cost, 2)
+
+    return {
+        "service_name": "Amazon Route 53 (DNS & Traffic Routing)",
+        "service_key": "route53",
+        "monthly_cost": subtotal,
+        "monthly_cost_formatted": f"${subtotal:,.2f}",
+        "components": [
+            {
+                "name": "Route 53 Public Hosted Zones",
+                "quantity": f"{hosted_zones} Hosted Zone(s)",
+                "unit": "Zones/Mo",
+                "unit_price": f"${pricing['hosted_zone_per_month']:.2f}/zone",
+                "formula": f"{hosted_zones} × ${pricing['hosted_zone_per_month']:.2f}",
+                "subtotal": round(zones_cost, 2),
+                "pricing_source": "AWS Route 53 Zones"
+            },
+            {
+                "name": "Route 53 Standard DNS Queries",
+                "quantity": f"{queries_millions:.2f} Million Queries",
+                "unit": "Million Queries",
+                "unit_price": f"${pricing['queries_per_million']:.2f}/1M",
+                "formula": f"{queries_millions:.2f} × ${pricing['queries_per_million']:.2f}",
+                "subtotal": round(queries_cost, 2),
+                "pricing_source": "AWS Route 53 Queries"
+            }
+        ],
+        "configuration": {
+            "hosted_zones": hosted_zones,
+            "queries_millions": queries_millions
+        }
+    }
+
+
+def calculate_alb_cost(config: Dict[str, Any], region: str = "ap-south-1") -> Dict[str, Any]:
+    """
+    Calculates Elastic Load Balancing (Application Load Balancer) monthly estimated cost.
+    Formula:
+      ALB Uptime Cost = alb_count * operating_hours * alb_price_per_hr
+      LCU Processing Cost = alb_count * operating_hours * lcu_count * lcu_price_per_hr
+    """
+    pricing = get_pricing_registry(region)["alb"]
+    alb_count = max(1, int(config.get("alb_count", 1)))
+    hours = min(744.0, max(0.0, float(config.get("operating_hours", 730.0))))
+    lcu = max(0.5, float(config.get("lcu_count", 1.0)))
+
+    alb_cost = alb_count * hours * pricing["alb_per_hr"]
+    lcu_cost = alb_count * hours * lcu * pricing["lcu_per_hr"]
+    subtotal = round(alb_cost + lcu_cost, 2)
+
+    return {
+        "service_name": "AWS Elastic Load Balancing (Application Load Balancer)",
+        "service_key": "alb",
+        "monthly_cost": subtotal,
+        "monthly_cost_formatted": f"${subtotal:,.2f}",
+        "components": [
+            {
+                "name": "Application Load Balancer Uptime",
+                "quantity": f"{alb_count} ALB(s) @ {hours:.0f} hrs/mo",
+                "unit": "ALB-Hours",
+                "unit_price": f"${pricing['alb_per_hr']:.4f}/hr",
+                "formula": f"{alb_count} × {hours:.0f} hrs × ${pricing['alb_per_hr']:.4f}",
+                "subtotal": round(alb_cost, 2),
+                "pricing_source": "AWS ALB Hourly"
+            },
+            {
+                "name": "Load Balancer Capacity Units (LCU)",
+                "quantity": f"{lcu:.1f} LCU/hr @ {hours:.0f} hrs",
+                "unit": "LCU-Hours",
+                "unit_price": f"${pricing['lcu_per_hr']:.4f}/LCU-hr",
+                "formula": f"{alb_count} × {hours:.0f} hrs × {lcu:.1f} LCU × ${pricing['lcu_per_hr']:.4f}",
+                "subtotal": round(lcu_cost, 2),
+                "pricing_source": "AWS ALB Capacity"
+            }
+        ],
+        "configuration": {
+            "alb_count": alb_count,
+            "operating_hours": hours,
+            "lcu_count": lcu
+        }
+    }
+
+
+def calculate_ecr_cost(config: Dict[str, Any], region: str = "ap-south-1") -> Dict[str, Any]:
+    """
+    Calculates Amazon Elastic Container Registry (ECR) monthly estimated cost.
+    Formula:
+      Storage Cost = max(0, storage_gb - 0.5 free) * price_per_gb_month
+    """
+    pricing = get_pricing_registry(region)["ecr"]
+    storage_gb = max(0.0, float(config.get("storage_gb", 5.0)))
+    apply_free_tier = bool(config.get("apply_free_tier", True))
+
+    free_gb = pricing["free_tier_storage_gb"] if apply_free_tier else 0.0
+    billed_gb = max(0.0, storage_gb - free_gb)
+    storage_cost = billed_gb * pricing["storage_per_gb_month"]
+    subtotal = round(storage_cost, 2)
+
+    return {
+        "service_name": "Amazon Elastic Container Registry (ECR)",
+        "service_key": "ecr",
+        "monthly_cost": subtotal,
+        "monthly_cost_formatted": f"${subtotal:,.2f}",
+        "components": [
+            {
+                "name": "ECR Container Image Storage",
+                "quantity": f"{storage_gb:.1f} GB ({billed_gb:.1f} GB billed)",
+                "unit": "GB-Month",
+                "unit_price": f"${pricing['storage_per_gb_month']:.2f}/GB-mo",
+                "formula": f"max(0, {storage_gb:.1f} - {free_gb:.1f}) × ${pricing['storage_per_gb_month']:.2f}",
+                "subtotal": round(storage_cost, 2),
+                "pricing_source": "Amazon ECR Storage"
+            }
+        ],
+        "configuration": {
+            "storage_gb": storage_gb,
+            "apply_free_tier": apply_free_tier
+        }
+    }
+
+
 # ==========================================
 # 2. Total Cost Estimation Orchestrator
 # ==========================================
@@ -693,7 +1220,14 @@ SERVICE_CALCULATORS = {
     "rds": calculate_rds_cost,
     "lambda": calculate_lambda_cost,
     "cloudwatch": calculate_cloudwatch_cost,
-    "vpc": calculate_vpc_cost
+    "vpc": calculate_vpc_cost,
+    "ecs": calculate_ecs_cost,
+    "dynamodb": calculate_dynamodb_cost,
+    "sns": calculate_sns_cost,
+    "quicksight": calculate_quicksight_cost,
+    "route53": calculate_route53_cost,
+    "alb": calculate_alb_cost,
+    "ecr": calculate_ecr_cost
 }
 
 
@@ -990,6 +1524,112 @@ def generate_optimization_recommendations(
                     "assumptions": "Significant proportion of outbound traffic from EC2/Lambda targets Amazon S3.",
                     "trade_offs": "Requires updating VPC route tables. VPC Gateway Endpoints for S3 are 100% free with no latency impact.",
                     "priority": "HIGH" if savings > 5 else "MEDIUM"
+                })
+
+    # 7. ECS Fargate Spot & Graviton ARM64 Optimization
+    if "ecs" in service_dict:
+        ecs_res = service_dict["ecs"]
+        cfg = ecs_res["configuration"]
+        if cfg["launch_type"] == "Fargate":
+            opt_cfg = copy.deepcopy(cfg)
+            opt_cfg["launch_type"] = "Fargate-Spot"
+            opt_res = calculate_ecs_cost(opt_cfg, region=region)
+            savings = round(ecs_res["monthly_cost"] - opt_res["monthly_cost"], 2)
+            if savings > 0.5:
+                pct = round(savings / ecs_res["monthly_cost"] * 100.0, 1)
+                recs.append({
+                    "id": "REC-ECS-SPOT",
+                    "category": "Container Compute Optimization",
+                    "service": "Amazon ECS",
+                    "title": "Adopt AWS Fargate Spot for Fault-Tolerant Containers",
+                    "current_config": f"{cfg['task_count']} task(s) on On-Demand Fargate ({cfg['vcpu']} vCPU / {cfg['memory_gb']} GB)",
+                    "suggested_config": f"{cfg['task_count']} task(s) on Fargate Spot (70% discount on unused cloud capacity)",
+                    "current_cost_monthly": ecs_res["monthly_cost"],
+                    "optimized_cost_monthly": opt_res["monthly_cost"],
+                    "estimated_savings_monthly": savings,
+                    "savings_percentage": pct,
+                    "assumptions": "Containerized workloads can tolerate unexpected task interruption with graceful SIGTERM termination handling.",
+                    "trade_offs": "Fargate Spot tasks can be reclaimed with a 2-minute warning. Suitable for stateless batch jobs, CI runners, and dev environments.",
+                    "priority": "HIGH"
+                })
+
+        if cfg["architecture"] == "x86_64":
+            opt_cfg = copy.deepcopy(cfg)
+            opt_cfg["architecture"] = "arm64"
+            opt_res = calculate_ecs_cost(opt_cfg, region=region)
+            savings = round(ecs_res["monthly_cost"] - opt_res["monthly_cost"], 2)
+            if savings > 0.5:
+                pct = round(savings / ecs_res["monthly_cost"] * 100.0, 1)
+                recs.append({
+                    "id": "REC-ECS-GRAVITON",
+                    "category": "Container Compute Architecture",
+                    "service": "Amazon ECS",
+                    "title": "Migrate ECS Fargate Containers to AWS Graviton (ARM64)",
+                    "current_config": f"{cfg['task_count']} task(s) running on x86_64 architecture",
+                    "suggested_config": f"{cfg['task_count']} task(s) running on AWS Graviton ARM64 architecture (20% lower price)",
+                    "current_cost_monthly": ecs_res["monthly_cost"],
+                    "optimized_cost_monthly": opt_res["monthly_cost"],
+                    "estimated_savings_monthly": savings,
+                    "savings_percentage": pct,
+                    "assumptions": "Docker container base image and application runtime support Linux ARM64.",
+                    "trade_offs": "Requires building multi-arch Docker images with Docker Buildx (`linux/arm64`).",
+                    "priority": "MEDIUM"
+                })
+
+    # 8. DynamoDB Capacity Mode Optimization
+    if "dynamodb" in service_dict:
+        ddb_res = service_dict["dynamodb"]
+        cfg = ddb_res["configuration"]
+        if cfg["billing_mode"] == "PAY_PER_REQUEST" and ddb_res["monthly_cost"] > 15.0:
+            opt_cfg = copy.deepcopy(cfg)
+            opt_cfg["billing_mode"] = "PROVISIONED"
+            opt_cfg["provisioned_wcu"] = 10
+            opt_cfg["provisioned_rcu"] = 25
+            opt_res = calculate_dynamodb_cost(opt_cfg, region=region)
+            savings = round(ddb_res["monthly_cost"] - opt_res["monthly_cost"], 2)
+            if savings > 0.5:
+                pct = round(savings / ddb_res["monthly_cost"] * 100.0, 1)
+                recs.append({
+                    "id": "REC-DDB-CAPACITY",
+                    "category": "Database Capacity Management",
+                    "service": "Amazon DynamoDB",
+                    "title": "Switch High-Volume DynamoDB Tables to Provisioned Auto-Scaling",
+                    "current_config": "On-Demand Billing ($1.25/1M WRU, $0.25/1M RRU)",
+                    "suggested_config": "Provisioned Capacity with Auto Scaling (Target 70% Utilization)",
+                    "current_cost_monthly": ddb_res["monthly_cost"],
+                    "optimized_cost_monthly": opt_res["monthly_cost"],
+                    "estimated_savings_monthly": savings,
+                    "savings_percentage": pct,
+                    "assumptions": "Database query traffic follows steady, predictable daily usage curves.",
+                    "trade_offs": "Provisioned capacity requires configuring CloudWatch Application Auto Scaling to prevent throttling during unexpected traffic spikes.",
+                    "priority": "MEDIUM"
+                })
+
+    # 9. Application Load Balancer Consolidation
+    if "alb" in service_dict:
+        alb_res = service_dict["alb"]
+        cfg = alb_res["configuration"]
+        if cfg["alb_count"] > 1:
+            opt_cfg = copy.deepcopy(cfg)
+            opt_cfg["alb_count"] = 1
+            opt_res = calculate_alb_cost(opt_cfg, region=region)
+            savings = round(alb_res["monthly_cost"] - opt_res["monthly_cost"], 2)
+            if savings > 1.0:
+                pct = round(savings / alb_res["monthly_cost"] * 100.0, 1)
+                recs.append({
+                    "id": "REC-ALB-CONSOLIDATE",
+                    "category": "Networking Consolidation",
+                    "service": "AWS Elastic Load Balancing",
+                    "title": "Consolidate Multiple Load Balancers with Path-Based Routing",
+                    "current_config": f"{cfg['alb_count']} individual Application Load Balancers ($0.0225/hr each)",
+                    "suggested_config": "1 shared ALB using Listener Rules and Path-Based Target Group routing",
+                    "current_cost_monthly": alb_res["monthly_cost"],
+                    "optimized_cost_monthly": opt_res["monthly_cost"],
+                    "estimated_savings_monthly": savings,
+                    "savings_percentage": pct,
+                    "assumptions": "Microservices are deployed in the same VPC or peered network.",
+                    "trade_offs": "A shared ALB represents a single ingress entry point. Ensure target groups are isolated with proper health check alarms.",
+                    "priority": "HIGH"
                 })
 
     return recs

@@ -37,6 +37,7 @@ s, body, h = test_url("Frontend HTML", f"{base_s3}/index.html")
 assert "AI-Powered AWS Cloud Cost Optimization System" in body, "HTML title/content missing"
 assert 'id="tabEstimator"' in body, "Estimator tab missing"
 assert 'id="modeEstimatorContainer"' in body, "Estimator container missing"
+assert 'id="tabArchitecture"' in body, "Architecture tab missing"
 assert 'id="comparisonModal"' in body, "Comparison modal missing"
 
 s, body, h = test_url("Frontend App JS", f"{base_s3}/app.js")
@@ -73,5 +74,14 @@ s, body, h = test_url("Save Report Endpoint", f"{api_base}/save-report", method=
 res_save = json.loads(body)
 assert res_save.get("status") == "success", "Save report failed"
 print(f"   -> Report Saved to S3: {res_save.get('s3_uri')}")
+
+s, body, h = test_url("QuickSight Manifest Endpoint", f"{api_base}/quicksight-manifest")
+assert "fileLocations" in body, "QuickSight manifest failed"
+
+s, body, h = test_url("SNS Alert Dispatch Endpoint", f"{api_base}/send-alert", method="POST", data={"report_data": res})
+assert "status" in body and "message_id" in body, "SNS alert endpoint failed"
+
+s, body, h = test_url("DynamoDB Persistence Endpoint", f"{api_base}/save-dynamodb", method="POST", data={"record_data": res})
+assert "status" in body and "record_id" in body, "DynamoDB endpoint failed"
 
 print("\n=== ALL END-TO-END DEPLOYMENT CHECKS PASSED SUCCESSFULLY ===")
